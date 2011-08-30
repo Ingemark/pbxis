@@ -1,4 +1,4 @@
-(ns com.ingemark.accm
+(ns com.ingemark.accm2
   (:use com.ingemark.clojure.logger)
   (:import (java.util.concurrent LinkedBlockingQueue Executors ExecutorService)
            (java.io OutputStream InputStream)

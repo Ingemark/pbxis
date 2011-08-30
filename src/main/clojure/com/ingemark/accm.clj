@@ -1,4 +1,4 @@
-(ns com.ingemark.compojure
+(ns com.ingemark.accm
   (:use (compojure core [route :as route])
         [com.ingemark.ring-jetty-adapter :only (run-jetty)]
         (ring.util [servlet :as servlet])
