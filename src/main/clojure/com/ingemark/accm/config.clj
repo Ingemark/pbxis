@@ -1,25 +1,21 @@
 (ns com.ingemark.accm.config
   (:use (com.ingemark.clojure (defrecord :only (the)))
-        com.ingemark.accm.types)
-  (:import com.ingemark.accm.types.User))
+        com.ingemark.accm.types
+        (clojure.contrib (io :as io :only ())))
+  (:import com.ingemark.accm.types.User
+           (java.io FileInputStream PushbackReader)))
 
-(def users [{:name "Viktor Matić"
-             :default-extension "145"
-             :default-channel-prefix "SIP/"
-             :permissions [:view-all-events]
-             :queues ["100"]
-             :username "vmatic"
-             :password "vmatic"}
-            {:name "Josip Gracin"
-             :default-extension "139"
-             :default-channel-prefix "SIP/"
-             :permissions []
-             :queues ["100"]
-             :username "jgracin"
-             :password "jgracin"}])
+(def _settings (atom nil))
 
-(def settings
-  {:users (map #(the User %) users)
-   :ami {:ip-address "192.168.18.30"
-         :username   "manager"
-         :password   "oracle"}})
+(defn initialize []
+  (let [users (with-open [uis (FileInputStream. (or (System/getProperty "users.file")
+                                                    "../properties/users.clj"))]
+                (read (PushbackReader. (io/reader uis))))
+        properties (with-open [pis (FileInputStream. (or (System/getProperty "properties.file")
+                                                         "../properties/properties.clj"))]
+                     (read (PushbackReader. (io/reader pis))))]
+    (reset! _settings (assoc properties :users (map #(the User %) users)))))
+
+(defn settings
+  ([] @_settings)
+  ([k] (get @_settings k)))

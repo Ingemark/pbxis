@@ -14,5 +14,3 @@
                  ^String password])
 
 (defrecord Listener [^User user ^String extension ^LinkedBlockingQueue queue])
-
-(defrecord AgentState [^String extension ^String status ^String unique-id ^String channel])
