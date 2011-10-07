@@ -7,7 +7,7 @@
   <description>
     Asterisk Call-Center Manager
   </description>
-  <version>1.0-SNAPSHOT</version>
+  <version>1.0</version>
   <url>http://www.inge-mark.hr</url>
 
   <repositories>
