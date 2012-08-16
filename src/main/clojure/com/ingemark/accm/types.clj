@@ -13,4 +13,4 @@
                  ^String username
                  ^String password])
 
-(defrecord Listener [^User user ^String extension ^LinkedBlockingQueue queue])
+(defrecord Listener [^String extension ^LinkedBlockingQueue queue])

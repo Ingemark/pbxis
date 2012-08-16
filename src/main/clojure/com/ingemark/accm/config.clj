@@ -1,7 +1,7 @@
 (ns com.ingemark.accm.config
   (:use (com.ingemark.clojure (defrecord :only (the)))
         com.ingemark.accm.types
-        (clojure.contrib (io :as io :only ())))
+        (clojure.java (io :as io :only ())))
   (:import com.ingemark.accm.types.User
            (java.io FileInputStream PushbackReader)))
 
