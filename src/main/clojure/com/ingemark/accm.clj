@@ -24,7 +24,8 @@
                                                    (throw (RuntimeException. "Invalid filter"))))]
       (when stream-id
         {:status 200
-         :headers {"Location" (format "/eventstream/%s" stream-id)}}))) ; FIXME: Location URL MUST be absolute!
+         :headers {"Location" (format "/eventstream/%s" stream-id)}})))
+                                        ; FIXME: Location URL MUST be absolute!
   (POST "/action" request (service/handle-action request))
   (POST "/manager-action" request (service/handle-manager-action request)))
 
