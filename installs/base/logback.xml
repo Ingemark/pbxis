@@ -1,25 +1,38 @@
-<configuration>
-  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <file>../logs/application.log</file>
-    <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
-      <fileNamePattern>../logs/application.log.%i</fileNamePattern>
-      <minIndex>1</minIndex>
-      <maxIndex>20</maxIndex>
-    </rollingPolicy>
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanInterval="10 seconds">
+  <property name="logdir" value="../logs/"/>
+  <property name="arcend" value=".log.%i.gz"/>
+  <property name="longpattern" value="%d{yyyy-MM-dd HH:mm:ss} %thread %-5le %lo{25} - %msg %rEx%n"/>
+  <property name="shortpattern" value="%d{yyyy-MM-dd HH:mm:ss} %-5le - %msg %rEx%n"/>
 
-    <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
-      <maxFileSize>4MB</maxFileSize>
-    </triggeringPolicy>
+  <appender name="file" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <File>${logdir}pbxis.log</File>
     <encoder>
-      <pattern>%d{HH:mm:ss} [%thread] %-5level %logger{35} - %msg%n</pattern>
+      <pattern>${longpattern}</pattern>
+    </encoder>
+    <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+      <maxIndex>12</maxIndex>
+      <FileNamePattern>${logdir}pbxis${arcend}</FileNamePattern>
+    </rollingPolicy>
+    <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+      <MaxFileSize>4000KB</MaxFileSize>
+    </triggeringPolicy>
+  </appender>
+
+  <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>${longpattern}</pattern>
+    </encoder>
+  </appender>
+  <appender name="wire" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%m%n</pattern>
     </encoder>
   </appender>
 
-  <logger name="com.ingemark" level="DEBUG" />
-
   <root level="INFO">
-    <appender-ref ref="FILE" />
+    <appender-ref ref="console"/>
+    <appender-ref ref="file"/>
   </root>
+  <logger name="com.ingemark" level="ALL"/>
 </configuration>
-
-
