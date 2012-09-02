@@ -34,10 +34,13 @@
 
 (defn events-for [agnt]
   (when-let [q (@agnt-eventq agnt)]
-    (when-let [head (.poll q 4 TimeUnit/SECONDS)]
-      (doto (java.util.ArrayList.)
-        (.add head)
-        #(.drainTo q %)))))
+    (let [suck #(.drainTo q %)
+          evs (doto (java.util.ArrayList.) suck)]
+      (if (seq evs)
+        evs
+        (when-let [head (.poll q 4 TimeUnit/SECONDS)]
+          (Thread/sleep 50)
+          (doto evs (.add head) suck))))))
 
 (defn handle-ami-event [event]
   (let [unique-id (event :uniqueId)]
@@ -67,9 +70,13 @@
   #_((config-agnt "701" ["3000" "3001"])
   (config-agnt "702" ["3000"]))
   (handle-ami-event {:class JoinEvent :queue "3000" :count 1})
+  (Thread/sleep 4)
   (handle-ami-event {:class AgentCalledEvent :agentCalled "SCCP/701"
                      :uniqueId "a" :callerIdNum "111111"})
+  (Thread/sleep 4)
   (handle-ami-event {:class LeaveEvent :queue "3000" :count 0})
+  (Thread/sleep 4)
   (handle-ami-event {:class AgentConnectEvent :member "SCCP/701" :uniqueId "a"})
+  (Thread/sleep 4)
   (handle-ami-event {:class AgentCompleteEvent :member "SCCP/701" :uniqueId "a"
                      :talkTime 20 :holdTime 2}))
