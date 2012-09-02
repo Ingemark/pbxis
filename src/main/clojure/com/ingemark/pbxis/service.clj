@@ -1,39 +1,47 @@
 (ns com.ingemark.pbxis.service
   (require [clojure.set :as set]
+           [clojure.core.incubator :refer (-?>)]
            [com.ingemark.clojure.logger :refer :all])
   (import [org.asteriskjava.manager.event
            ManagerEvent JoinEvent LeaveEvent DialEvent HangupEvent
-           AgentCalledEvent AgentConnectEvent AgentCompleteEvent]))
+           AgentCalledEvent AgentConnectEvent AgentCompleteEvent]
+          (java.util.concurrent LinkedBlockingQueue TimeUnit)))
 
-(def empty-q clojure.lang.PersistentQueue/EMPTY)
+(defn- empty-q [] (LinkedBlockingQueue.))
 
-(def q-agnts (atom {"3000" #{"701"}
-                    "3001" #{"701" "702"}}))
+(def amiq-agnts (atom {}))
 
-(defonce agnt-eventq (atom {}))
+(def agnt-eventq (atom {}))
 
-(defn- update-qagnts [q-agnts agnt qs]
+(defn- update-amiq-agnts [amiq-agnts agnt amiqs]
   (let [conj #(conj (or %1 #{}) %2)
-        qs-for-add (into #{} qs)
-        qs-for-remove (set/difference (into #{} (keys q-agnts)) qs-for-add)
-        q-agnts (reduce #(update-in %1 [%2] conj agnt) q-agnts qs-for-add)]
+        amiqs-for-add (into #{} amiqs)
+        amiqs-for-remove (set/difference (into #{} (keys amiq-agnts)) amiqs-for-add)
+        amiq-agnts (reduce #(update-in %1 [%2] conj agnt) amiq-agnts amiqs-for-add)]
     (reduce #(if (= (%1 %2) #{agnt}) (dissoc %1 %2) (update-in %1 [%2] disj agnt))
-            q-agnts qs-for-remove)))
-
-(defn config-agnt [agnt & qs]
-  (swap! agnt-eventq (fn [agnt-eventq] (update-in agnt-eventq [agnt] #(or % empty-q))))
-  (swap! q-agnts update-qagnts agnt qs))
+            amiq-agnts amiqs-for-remove)))
 
 (defn- enq-event [agnt k & vs]
-  (when-let [q (agnt-eventq (re-find #"\d+$" agnt))] (swap! q conj (vec (cons k vs)))))
+  (when-let [q (@agnt-eventq (re-find #"\d+$" agnt))] (.add q (vec (cons k vs)))))
 
-(defn- broadcast-qcount [q ami-event]
-  (doseq [agnt (@q-agnts (ami-event :queue))] (enq-event agnt "queueCount" (ami-event :count))))
+(defn- broadcast-qcount [ami-event]
+  (doseq [agnt (@amiq-agnts (ami-event :queue))] (enq-event agnt "queueCount" (ami-event :count))))
 
-(defn handle-ami-event [^ManagerEvent event-object]
-  (let [event (bean event-object)
-        unique-id (event :uniqueId)]
-    (condp instance? event-object
+(defn config-agnt [agnt qs]
+  (swap! agnt-eventq #(if (% agnt) % (assoc % agnt (empty-q))))
+  (swap! amiq-agnts update-amiq-agnts agnt qs)
+  {:agent agnt :queues qs})
+
+(defn events-for [agnt]
+  (when-let [q (@agnt-eventq agnt)]
+    (when-let [head (.poll q 4 TimeUnit/SECONDS)]
+      (doto (java.util.ArrayList.)
+        (.add head)
+        #(.drainTo q %)))))
+
+(defn handle-ami-event [event]
+  (let [unique-id (event :uniqueId)]
+    (condp = (:class event)
       JoinEvent
       (broadcast-qcount event)
       LeaveEvent
@@ -52,5 +60,16 @@
                  unique-id
                  (event :talkTime)
                  (event :holdTime)
-                 (.get (event :variables) "FILEPATH"))
-      (logdebug "Ignoring event" (.getSimpleName (type event-object))))))
+                 (-?> event :variables (.get "FILEPATH")))
+      (logdebug "Ignoring event" (.getSimpleName (:class event))))))
+
+(defn etest []
+  #_((config-agnt "701" ["3000" "3001"])
+  (config-agnt "702" ["3000"]))
+  (handle-ami-event {:class JoinEvent :queue "3000" :count 1})
+  (handle-ami-event {:class AgentCalledEvent :agentCalled "SCCP/701"
+                     :uniqueId "a" :callerIdNum "111111"})
+  (handle-ami-event {:class LeaveEvent :queue "3000" :count 0})
+  (handle-ami-event {:class AgentConnectEvent :member "SCCP/701" :uniqueId "a"})
+  (handle-ami-event {:class AgentCompleteEvent :member "SCCP/701" :uniqueId "a"
+                     :talkTime 20 :holdTime 2}))

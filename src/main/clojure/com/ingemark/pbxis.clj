@@ -1,9 +1,9 @@
 (ns com.ingemark.pbxis
-  (require [com.ingemark.pbxis.service :as svc]
+  (require [com.ingemark.pbxis.service :as ps]
            [clojure.string :as st]
            [clojure.data.json :as json]
            [ring.util.response :as r]
-           [net.cgrand.moustache :refer (app delegate)]
+           [net.cgrand.moustache :refer (app)]
            [ring.adapter.jetty :refer (run-jetty)]
            (ring.middleware [json-params :refer (wrap-json-params)]
                             [file :refer (wrap-file)])
@@ -15,9 +15,8 @@
 (def app-main
   (app
    wrap-json-params
-   ["suggest"] {:get [{:keys [term shop]} (ok nil)]}
-   ["ksrch"] {:get [{:keys [term shop cat-id order attach-cat start-at max-res]}
-                    (ok nil)]}))
+   ["agent" id] {:post [{:strs [queues]} (ok ps/config-agnt id queues)]
+                 :get (ok ps/events-for id)}))
 
 (defonce server (atom nil))
 
@@ -28,8 +27,9 @@
 (defn connect []
   (reset! connection (.createManagerConnection factory))
   (.login connection)
-  (.addEventListener connection (proxy [ManagerEventListener] []
-                                  (onManagerEvent [event] (handle-ami-event event)))))
+  (.addEventListener connection
+                     (reify ManagerEventListener
+                       (onManagerEvent [_ event] (ps/handle-ami-event (bean event))))))
 
 (defn initialize []
   (reset! factory (apply #(ManagerConnectionFactory. %1 %2 %3)
@@ -46,7 +46,5 @@
   (cfg/initialize nil)
   (logdebug "Settings" (cfg/settings))
   (.addShutdownHook (Runtime/getRuntime) (Thread. stop))
-  (reset! server (run-jetty
-                  (-> (var app-main)
-                      (wrap-file "static-content"))
-                  (assoc (cfg/settings) :join? false))))
+  (reset! server (run-jetty (var app-main)
+                            (assoc (cfg/settings) :join? false))))
