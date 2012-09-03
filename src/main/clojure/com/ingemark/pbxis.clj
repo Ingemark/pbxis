@@ -1,6 +1,5 @@
 (ns com.ingemark.pbxis
   (require [com.ingemark.pbxis.service :as ps]
-           [clojure.string :as s]
            [clojure.data.json :as json]
            [ring.util.response :as r]
            [net.cgrand.moustache :refer (app)]
@@ -20,40 +19,35 @@
 
 (defonce server (atom nil))
 
-(defonce factory (atom nil))
+(defonce ami-connection (atom nil))
 
-(defonce connection (atom nil))
-
-(defn connect []
-  (reset! connection (.createManagerConnection @factory))
-  (.login @connection)
-  (.addEventListener @connection
-                     (reify ManagerEventListener
-                       (onManagerEvent [_ event]
-                         (ps/handle-ami-event
-                          (assoc (bean event) :event-type (.getSimpleName (.getClass event))))))))
-
-(defn initialize []
-  (reset! factory (apply #(ManagerConnectionFactory. %1 %2 %3)
-                         (mapv ((cfg/settings) :ami) [:ip-address :username :password]))))
+(defn ami-connect []
+  (reset!
+   ami-connection
+   (doto (-> (apply #(ManagerConnectionFactory. %1 %2 %3)
+                    (mapv ((cfg/settings) :ami) [:ip-address :username :password]))
+             .createManagerConnection)
+     (.addEventListener
+      (reify ManagerEventListener
+        (onManagerEvent [_ event]
+          (ps/handle-ami-event
+           (assoc (bean event) :event-type
+                  (let [c (-> event .getClass .getSimpleName)]
+                    (.substring c 0 (- (.length c) (.length "Event")))))))))
+     .login)))
 
 (defn stop []
   (println "Shutting down")
-  (when @server
-    (doto @server .stop .join)
-    (reset! server nil))
-  (when @connection
-    (.logoff @connection)
-    (reset! connection nil))
-  (reset! factory nil)
+  (when @server (doto @server .stop .join) (reset! server nil))
+  (when @ami-connection (.logoff @ami-connection) (reset! ami-connection nil))
+  (when @ps/sched (.shutdown @ps/sched) (reset! ps/sched nil))
   nil)
 
 (defn main []
   (stop)
   (cfg/initialize nil)
   (logdebug "Settings" (cfg/settings))
-  (.addShutdownHook (Runtime/getRuntime) (Thread. stop))
-  (initialize)
-  (connect)
+  (ami-connect)
+  (reset! ps/sched (java.util.concurrent.Executors/newSingleThreadScheduledExecutor))
   (reset! server (run-jetty (var app-main)
                             (assoc (cfg/settings) :join? false))))
