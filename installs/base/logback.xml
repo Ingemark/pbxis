@@ -35,4 +35,5 @@
     <appender-ref ref="file"/>
   </root>
   <logger name="com.ingemark" level="ALL"/>
+  <logger name="org.asteriskjava.manager.internal.EventBuilderImpl" level="ERROR"/>
 </configuration>
