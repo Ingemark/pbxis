@@ -1,6 +1,6 @@
 (ns com.ingemark.pbxis
   (require [com.ingemark.pbxis.service :as ps]
-           [clojure.string :as st]
+           [clojure.string :as s]
            [clojure.data.json :as json]
            [ring.util.response :as r]
            [net.cgrand.moustache :refer (app)]
@@ -25,11 +25,13 @@
 (defonce connection (atom nil))
 
 (defn connect []
-  (reset! connection (.createManagerConnection factory))
-  (.login connection)
-  (.addEventListener connection
+  (reset! connection (.createManagerConnection @factory))
+  (.login @connection)
+  (.addEventListener @connection
                      (reify ManagerEventListener
-                       (onManagerEvent [_ event] (ps/handle-ami-event (bean event))))))
+                       (onManagerEvent [_ event]
+                         (ps/handle-ami-event
+                          (assoc (bean event) :event-type (.getSimpleName (.getClass event))))))))
 
 (defn initialize []
   (reset! factory (apply #(ManagerConnectionFactory. %1 %2 %3)
@@ -40,11 +42,18 @@
   (when @server
     (doto @server .stop .join)
     (reset! server nil))
+  (when @connection
+    (.logoff @connection)
+    (reset! connection nil))
+  (reset! factory nil)
   nil)
 
 (defn main []
+  (stop)
   (cfg/initialize nil)
   (logdebug "Settings" (cfg/settings))
   (.addShutdownHook (Runtime/getRuntime) (Thread. stop))
+  (initialize)
+  (connect)
   (reset! server (run-jetty (var app-main)
                             (assoc (cfg/settings) :join? false))))
