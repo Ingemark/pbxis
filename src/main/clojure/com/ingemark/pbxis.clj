@@ -19,11 +19,9 @@
 
 (defonce server (atom nil))
 
-(defonce ami-connection (atom nil))
-
 (defn ami-connect []
   (reset!
-   ami-connection
+   ps/ami-connection
    (doto (-> (apply #(ManagerConnectionFactory. %1 %2 %3)
                     (mapv ((cfg/settings) :ami) [:ip-address :username :password]))
              .createManagerConnection)
@@ -39,7 +37,7 @@
 (defn stop []
   (println "Shutting down")
   (when @server (doto @server .stop .join) (reset! server nil))
-  (when @ami-connection (.logoff @ami-connection) (reset! ami-connection nil))
+  (when @ps/ami-connection (.logoff @ps/ami-connection) (reset! ps/ami-connection nil))
   (when @ps/scheduler (.shutdown @ps/scheduler) (reset! ps/scheduler nil))
   nil)
 

@@ -1,9 +1,10 @@
 (ns com.ingemark.pbxis.service
   (require [clojure.set :as set]
            (clojure.core [incubator :refer (-?>)] [strint :refer (<<)])
-           [com.ingemark.clojure.logger :refer :all])
+           (com.ingemark.clojure [config :as cfg] [logger :refer :all]))
   (import org.asteriskjava.manager.event.ManagerEvent
-          (java.util.concurrent ConcurrentHashMap LinkedBlockingQueue TimeUnit)))
+          org.asteriskjava.manager.action.OriginateAction
+          (java.util.concurrent LinkedBlockingQueue TimeUnit)))
 
 (def POLL-TIMEOUT-SEC 15)
 (def UNSUB-DELAY-SEC (+ POLL-TIMEOUT-SEC 2))
@@ -14,6 +15,8 @@
 (defonce lock (Object.))
 
 (defonce scheduler (atom nil))
+
+(defonce ami-connection (atom nil))
 
 (defonce amiq-agnts (atom {}))
 
@@ -112,17 +115,26 @@
                    (-?> event :variables (.get "FILEPATH")))
         nil))))
 
+(defn originate-call [exten channel context]
+  (.sendAction @ami-connection
+               (doto (OriginateAction.)
+                 (.setExten exten)
+                 (.setChannel channel)
+                 (.setContext context)
+                 (.setPriority 1))
+               (-> (cfg/settings) :outgoing-timeout long)))
+
 (defn etest []
-  #_((config-agnt "701" "148" ["700" "3001"])
+  #_((config-agnt "148" ["700" "3001"])
   (config-agnt "201" ["3000"]))
   (handle-ami-event {:event-type "Join" :queue "700" :count 1})
   (Thread/sleep 4)
-  (handle-ami-event {:event-type "AgentCalled" :agentCalled "SCCP/701"
+  (handle-ami-event {:event-type "AgentCalled" :agentCalled "SCCP/148"
                      :uniqueId "a" :callerIdNum "111111"})
   (Thread/sleep 4)
   (handle-ami-event {:event-type "Leave" :queue "700" :count 0})
   (Thread/sleep 4)
-  (handle-ami-event {:evet-type "AgentConnect" :member "SCCP/701" :uniqueId "a"})
+  (handle-ami-event {:evet-type "AgentConnect" :member "SCCP/148" :uniqueId "a"})
   (Thread/sleep 4)
-  (handle-ami-event {:event-type "AgentComplete" :member "SCCP/701" :uniqueId "a"
+  (handle-ami-event {:event-type "AgentComplete" :member "SCCP/148" :uniqueId "a"
                      :talkTime 20 :holdTime 2}))
