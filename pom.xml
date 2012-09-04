@@ -84,11 +84,6 @@
       <artifactId>moustache</artifactId>
       <version>1.1.0</version>
     </dependency>
-    <!--dependency>
-      <groupId>ring</groupId>
-      <artifactId>ring-core</artifactId>
-      <version>0.3.10</version>
-    </dependency-->
     <dependency>
       <groupId>ring</groupId>
       <artifactId>ring-jetty-adapter</artifactId>
