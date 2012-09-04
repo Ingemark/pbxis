@@ -40,7 +40,7 @@
   (println "Shutting down")
   (when @server (doto @server .stop .join) (reset! server nil))
   (when @ami-connection (.logoff @ami-connection) (reset! ami-connection nil))
-  (when @ps/sched (.shutdown @ps/sched) (reset! ps/sched nil))
+  (when @ps/scheduler (.shutdown @ps/scheduler) (reset! ps/scheduler nil))
   nil)
 
 (defn main []
@@ -48,6 +48,6 @@
   (cfg/initialize nil)
   (logdebug "Settings" (cfg/settings))
   (ami-connect)
-  (reset! ps/sched (java.util.concurrent.Executors/newSingleThreadScheduledExecutor))
+  (reset! ps/scheduler (java.util.concurrent.Executors/newSingleThreadScheduledExecutor))
   (reset! server (run-jetty (var app-main)
                             (assoc (cfg/settings) :join? false))))
