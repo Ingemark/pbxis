@@ -9,13 +9,16 @@
            (com.ingemark.clojure [config :as cfg] [logger :refer :all]))
   (import (org.asteriskjava.manager ManagerConnectionFactory ManagerEventListener)))
 
-(defn ok [f & args] (fn [_] (r/response (json/json-str (apply f args)))))
+(defn ok [f & args] (fn [_] (let [ret (apply f args)]
+                              ((if (nil? ret) r/not-found r/response) (json/json-str ret)))))
 
 (def app-main
   (app
    wrap-json-params
-   ["agent" id] {:post [{:strs [queues]} (ok ps/config-agnt id queues)]
-                 :get (ok ps/events-for id)}))
+   ["agent" id &]
+   [[] {:post [{:strs [queues]} (ok ps/config-agnt id queues)]
+        :get (ok ps/events-for id)}
+    ["originate"] {:post [{:strs [phone]} (ok ps/originate-call id phone)]}]))
 
 (defonce server (atom nil))
 

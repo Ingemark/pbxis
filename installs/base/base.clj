@@ -1,7 +1,8 @@
 (->> {:port 58615
       :channel-prefix "SCCP/"
-      :outgoing-context "internal"
-      :outgoint-timeout 45000
+      :originate-context "internal"
+      :originate-timeout-seconds 45
+      :poll-timeout-seconds 15
       :ami {:ip-address "192.168.18.30"
             :username   "accm"
             :password   "h2e9d49"}}
