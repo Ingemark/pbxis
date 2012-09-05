@@ -96,15 +96,15 @@
 
 (defn handle-ami-event [event]
   (let [t (:event-type event)]
-    (when-not (ignored-events t)
+    (if (ignored-events t)
+      (when (= -1 (-?> event :privilege (.indexOf "call")))
+        (schedule #(logdebug "event mask" (.sendAction @ami-connection (EventsAction. "call")))
+                  0 TimeUnit/SECONDS))
       (logdebug
        "AMI event\n" t
        (into (sorted-map)
              (dissoc event :event-type :dateReceived :application :server :context
                      :priority :appData :func :class :source :timestamp :line :file :sequenceNumber))))
-    (when (= -1 (-?> event :privilege (.indexOf "call")))
-      (schedule #(logdebug "event mask" (.sendAction @ami-connection (EventsAction. "call")))
-                0 TimeUnit/SECONDS))
     (let [unique-id (event :uniqueId)]
       (condp = t
         "Join"
@@ -145,15 +145,16 @@
 
 (defn originate-call [agnt-key phone]
   (when-let [agnt (@rndkey-agnt agnt-key)]
-    (let [actionid (<< "pbxis-~(.substring (rnd-key) 0 8)")]
+    (let [actionid (<< "pbxis-~(.substring (rnd-key) 0 8)")
+          context ((cfg/settings) :originate-context)]
       (swap! uniqueid<->actionid assoc actionid "")
       (schedule #(swap! uniqueid<->actionid dissoc actionid)
                 (actionid-ttl) TimeUnit/SECONDS)
       (when (-> @ami-connection
                 (.sendAction (doto (OriginateAction.)
-                               (.setContext ((cfg/settings) :originate-context))
+                               (.setContext context )
                                (.setExten agnt)
-                               (.setChannel phone)
+                               (.setChannel (<< "Local/~{phone}@~{context}"))
                                (.setActionId actionid)
                                (.setPriority (int 1))
                                (.setAsync true))
