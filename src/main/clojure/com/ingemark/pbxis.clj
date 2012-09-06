@@ -18,7 +18,7 @@
    ["agent" id &]
    [[] {:post [{:strs [queues]} (ok ps/config-agnt id queues)]
         :get (ok ps/events-for id)}
-    ["originate"] {:post [{:strs [phone]} (ok ps/originate-call id phone)]}]))
+    ["place-call"] {:post [{:strs [phone]} (ok ps/originate-call id phone)]}]))
 
 (defonce server (atom nil))
 
@@ -50,5 +50,6 @@
   (logdebug "Settings" (cfg/settings))
   (ami-connect)
   (reset! ps/scheduler (java.util.concurrent.Executors/newSingleThreadScheduledExecutor))
-  (reset! server (run-jetty (var app-main)
+  (reset! server (run-jetty (-> (var app-main)
+                                (wrap-file "static-content"))
                             (assoc (cfg/settings) :join? false))))
