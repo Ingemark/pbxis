@@ -36,4 +36,5 @@
   </root>
   <logger name="com.ingemark" level="ALL"/>
   <logger name="org.asteriskjava.manager.internal.EventBuilderImpl" level="ERROR"/>
+  <logger name="org.asteriskjava.manager.internal.ResponseBuilderImpl" level="ERROR"/>
 </configuration>
