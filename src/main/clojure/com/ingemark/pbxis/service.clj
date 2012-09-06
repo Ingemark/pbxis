@@ -78,10 +78,6 @@
               (doto evs (.add head) drain-events)))
           evs)))))
 
-(def ignored-events
-  #{"VarSet" "NewState" "NewChannel" "NewExten" "NewCallerId" "NewAccountCode" "ChannelUpdate"
-    "RtcpSent" "RtcpReceived" "QueueMemberStatus" "PeerStatus"})
-
 (defn- digits [s] (re-find #"\d+" (or s "")))
 
 (defn- enq-event [agnt k & vs]
@@ -92,18 +88,24 @@
   (let [amiq (ami-event :queue)]
     (doseq [agnt (@amiq-agnts amiq)] (enq-event agnt "queueCount" amiq (ami-event :count)))))
 
-(defonce uniqueid<->actionid (atom {}))
+(defonce uniqueid-actionid (atom {}))
+
+(def ignored-events
+  #{"VarSet" "NewState" "NewChannel" "NewExten" "NewCallerId" "NewAccountCode" "ChannelUpdate"
+    "RtcpSent" "RtcpReceived" "QueueMemberStatus" "PeerStatus"})
 
 (defn handle-ami-event [event]
   (let [t (:event-type event)]
     (if (ignored-events t)
       (when (= -1 (-?> event :privilege (.indexOf "call")))
-        (schedule #(logdebug "event mask" (.sendAction @ami-connection (EventsAction. "call")))
+        (schedule #(logdebug
+                    (<< "Received unfiltered event ~{t}. Configure event mask.")
+                    (.sendAction @ami-connection (EventsAction. "call")))
                   0 TimeUnit/SECONDS))
       (logdebug
        "AMI event\n" t
        (into (sorted-map)
-             (dissoc event :event-type :dateReceived :application :server :context
+             (dissoc event :event-type :dateReceived :application :server :context :privilege
                      :priority :appData :func :class :source :timestamp :line :file :sequenceNumber))))
     (let [unique-id (event :uniqueId)]
       (condp = t
@@ -116,9 +118,9 @@
           (enq-event (event :channel) "dialOut" (event :srcUniqueId) (-> event :dialString digits))
           (let [dest-uniqueid (event :destUniqueId)
                 agnt (event :destination)]
-            (if-let [action-id (@uniqueid<->actionid (event :srcUniqueId))]
+            (if-let [action-id (@uniqueid-actionid (event :srcUniqueId))]
               (do (enq-event agnt "callPlaced" action-id dest-uniqueid)
-                  (swap! uniqueid<->actionid dissoc dest-uniqueid))
+                  (swap! uniqueid-actionid dissoc dest-uniqueid))
               (enq-event agnt "calledDirectly" dest-uniqueid (event :callerIdNum)))))
         "Hangup"
         (enq-event (event :channel) "hangup" unique-id)
@@ -133,13 +135,9 @@
         "OriginateResponse"
         (let [action-id (event :actionId)]
           (if (= (event :response) "Success")
-            (let [newstate (swap! uniqueid<->actionid
-                                  #(if (% action-id)
-                                     (-> % (dissoc action-id) (assoc unique-id action-id))
-                                     %))]
-              (when (newstate unique-id)
-                (schedule #(swap! uniqueid<->actionid dissoc unique-id)
-                          (actionid-ttl) TimeUnit/SECONDS)))
+            (let [newstate (swap! uniqueid-actionid assoc unique-id action-id)]
+              (schedule #(swap! uniqueid-actionid dissoc unique-id)
+                        (actionid-ttl) TimeUnit/SECONDS))
             (enq-event (event :exten) "placeCallFailed" action-id)))
         nil))))
 
@@ -147,9 +145,6 @@
   (when-let [agnt (@rndkey-agnt agnt-key)]
     (let [actionid (<< "pbxis-~(.substring (rnd-key) 0 8)")
           context ((cfg/settings) :originate-context)]
-      (swap! uniqueid<->actionid assoc actionid "")
-      (schedule #(swap! uniqueid<->actionid dissoc actionid)
-                (actionid-ttl) TimeUnit/SECONDS)
       (when (-> @ami-connection
                 (.sendAction (doto (OriginateAction.)
                                (.setContext context )
