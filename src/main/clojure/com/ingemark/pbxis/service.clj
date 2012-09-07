@@ -1,16 +1,18 @@
 (ns com.ingemark.pbxis.service
   (require [clojure.set :as set]
-           (clojure.core [incubator :refer (-?>)] [strint :refer (<<)])
-           (com.ingemark.clojure [config :as cfg] [logger :refer :all]))
-  (import org.asteriskjava.manager.event.ManagerEvent
-          (org.asteriskjava.manager.action OriginateAction EventsAction)
-          (java.util.concurrent LinkedBlockingQueue TimeUnit)))
+           (clojure.core [incubator :refer (-?> -?>>)] [strint :refer (<<)])
+           (com.ingemark.clojure [config :as cfg] [logger :refer :all]
+                                 [utils :refer (upcase-first invoke)]))
+  (import org.asteriskjava.manager.ManagerEventListener
+          org.asteriskjava.manager.event.ManagerEvent
+          (java.util.concurrent LinkedBlockingQueue TimeUnit)
+          (clojure.lang Reflector RT)))
 
 (defn- poll-timeout [] (-> (cfg/settings) :poll-timeout-seconds))
 (defn- unsub-delay [] (+ (poll-timeout) 2))
-(defn- event-burst [] 50)
 (defn- originate-timeout [] (-> (cfg/settings) :originate-timeout-seconds))
-(defn- actionid-ttl [] (+ (originate-timeout) 60))
+(def EVENT-BURST-MILLIS 50)
+(def ACTIONID-TTL-SECONDS 10)
 
 (defn- empty-q [] (LinkedBlockingQueue.))
 
@@ -28,7 +30,38 @@
 
 (defonce agnt-unsubscriber (atom {}))
 
-(defonce originate-uniqueids (atom {}))
+(defonce uniqueid-actionid (atom {}))
+
+(defn- action [type params]
+  (let [a (Reflector/invokeConstructor
+           (RT/classForName (<< "org.asteriskjava.manager.action.~{type}Action"))
+           (object-array 0))]
+    (doseq [[k v] params] (invoke (str "set" (upcase-first k)) a v))
+    a))
+
+(defn- send-action [a & [timeout]]
+  (->
+   (if timeout
+     (.sendAction @ami-connection a timeout)
+     (.sendAction @ami-connection a))
+   spy
+   .getResponse
+   (= "Success")))
+
+(defn- event-bean [event]
+  (into (sorted-map)
+        (-> (bean event)
+            (dissoc :dateReceived :application :server :privilege :priority :appData :func :class
+                    :source :timestamp :line :file :sequenceNumber :internalActionId)
+            (assoc :event-type
+              (let [c (-> event .getClass .getSimpleName)]
+                (.substring c 0 (- (.length c) (.length "Event"))))))))
+
+(defn- send-eventaction [a]
+  (->>
+   (doto (.sendEventGeneratingAction @ami-connection a) (-> .getResponse logdebug))
+   .getEvents
+   (mapv event-bean)))
 
 (defn- schedule [task delay unit] (.schedule @scheduler task delay unit))
 
@@ -47,6 +80,9 @@
     (swap! agnt-unsubscriber update-in [agnt] #(do (-?> % (.cancel false)) newsched))))
 
 (defn- rnd-key [] (-> (java.util.UUID/randomUUID) .toString))
+
+(defn agnt-qs-state [agnt]
+  (send-eventaction (action "QueueStatus" {:member agnt})))
 
 (defn config-agnt [agnt qs]
   (logdebug "config-agnt" agnt qs)
@@ -74,7 +110,7 @@
               evs (doto (java.util.ArrayList.) drain-events)]
           (when-not (seq evs)
             (when-let [head (.poll q (poll-timeout) TimeUnit/SECONDS)]
-              (Thread/sleep (event-burst))
+              (Thread/sleep EVENT-BURST-MILLIS)
               (doto evs (.add head) drain-events)))
           evs)))))
 
@@ -88,25 +124,22 @@
   (let [amiq (ami-event :queue)]
     (doseq [agnt (@amiq-agnts amiq)] (enq-event agnt "queueCount" amiq (ami-event :count)))))
 
-(defonce uniqueid-actionid (atom {}))
-
 (def ignored-events
   #{"VarSet" "NewState" "NewChannel" "NewExten" "NewCallerId" "NewAccountCode" "ChannelUpdate"
-    "RtcpSent" "RtcpReceived" "QueueMemberStatus" "PeerStatus"})
+    "RtcpSent" "RtcpReceived" "PeerStatus"})
+
+(def extension-status {0 "free" 1 "busy" 2 "busy" 3 "busy" 4 "unavailable" 8 "ringing"
+                       16 "onhold"})
 
 (defn handle-ami-event [event]
   (let [t (:event-type event)]
     (if (ignored-events t)
-      (when (= -1 (-?> event :privilege (.indexOf "call")))
-        (schedule #(logdebug
-                    (<< "Received unfiltered event ~{t}. Configure event mask.")
-                    (.sendAction @ami-connection (EventsAction. "call")))
+      (when-not (-?>> event :privilege (re-find #"agent|call"))
+        (schedule #(send-action
+                    (spy (<< "Received unfiltered event ~{t}, privilege ~(event :privilege). Sending")
+                         (action "Events" {:eventMask "agent,call"})))
                   0 TimeUnit/SECONDS))
-      (logdebug
-       "AMI event\n" t
-       (into (sorted-map)
-             (dissoc event :event-type :dateReceived :application :server :context :privilege
-                     :priority :appData :func :class :source :timestamp :line :file :sequenceNumber))))
+      (logdebug "AMI event\n" t (dissoc event :event-type)))
     (let [unique-id (event :uniqueId)]
       (condp = t
         "Join"
@@ -116,8 +149,7 @@
         "Dial"
         (when (= (event :subEvent) "Begin")
           (enq-event (event :channel) "dialOut" (event :srcUniqueId) (-> event :dialString digits))
-          (let [dest-uniqueid (event :destUniqueId)
-                agnt (event :destination)]
+          (let [dest-uniqueid (event :destUniqueId), agnt (event :destination)]
             (if-let [action-id (@uniqueid-actionid (event :srcUniqueId))]
               (do (enq-event agnt "callPlaced" action-id dest-uniqueid)
                   (swap! uniqueid-actionid dissoc dest-uniqueid))
@@ -135,41 +167,33 @@
         "OriginateResponse"
         (let [action-id (event :actionId)]
           (if (= (event :response) "Success")
-            (let [newstate (swap! uniqueid-actionid assoc unique-id action-id)]
-              (schedule #(swap! uniqueid-actionid dissoc unique-id)
-                        (actionid-ttl) TimeUnit/SECONDS))
+            (do (swap! uniqueid-actionid assoc unique-id action-id)
+                (schedule #(swap! uniqueid-actionid dissoc unique-id)
+                          ACTIONID-TTL-SECONDS TimeUnit/SECONDS))
             (enq-event (event :exten) "placeCallFailed" action-id)))
+        "ExtensionStatus"
+        (enq-event (event :exten) "extensionStatus" (extension-status (event :status)))
         nil))))
 
-(defn originate-call [agnt-key phone]
-  (when-let [agnt (@rndkey-agnt agnt-key)]
-    (let [actionid (<< "pbxis-~(.substring (rnd-key) 0 8)")
-          context ((cfg/settings) :originate-context)]
-      (when (-> @ami-connection
-                (.sendAction (doto (OriginateAction.)
-                               (.setContext context )
-                               (.setExten agnt)
-                               (.setChannel (<< "Local/~{phone}@~{context}"))
-                               (.setActionId actionid)
-                               (.setPriority (int 1))
-                               (.setAsync true))
-                             (originate-timeout))
-                spy
-                .getResponse
-                (= "Success"))
-        {:actionid actionid}))))
+(def ami-listener
+  (reify ManagerEventListener
+    (onManagerEvent [_ event] (handle-ami-event (event-bean event)))))
 
-(defn etest []
-  #_((config-agnt "148" ["700" "3001"])
-  (config-agnt "201" ["3000"]))
-  (handle-ami-event {:event-type "Join" :queue "700" :count 1})
-  (Thread/sleep 4)
-  (handle-ami-event {:event-type "AgentCalled" :agentCalled "SCCP/148"
-                     :uniqueId "a" :callerIdNum "111111"})
-  (Thread/sleep 4)
-  (handle-ami-event {:event-type "Leave" :queue "700" :count 0})
-  (Thread/sleep 4)
-  (handle-ami-event {:evet-type "AgentConnect" :member "SCCP/148" :uniqueId "a"})
-  (Thread/sleep 4)
-  (handle-ami-event {:event-type "AgentComplete" :member "SCCP/148" :uniqueId "a"
-                     :talkTime 20 :holdTime 2}))
+(defn- actionid [] (<< "pbxis-~(.substring (rnd-key) 0 8)"))
+
+(defn originate-call [agnt phone]
+  (let [actionid (actionid)
+        context ((cfg/settings) :originate-context)]
+    (when (send-action (action "Originate"
+                               {:context context
+                                :exten agnt
+                                :channel (<< "Local/~{phone}@~{context}")
+                                :actionId actionid
+                                :priority (int 1)
+                                :async true})
+                       (originate-timeout))
+      {:actionid actionid})))
+
+(defn queue-action [type agnt params]
+  (send-action (action (<< "Queue~(upcase-first type)")
+                       (assoc params :interface (<< "~((cfg/settings) :channel-prefix)~{agnt}")))))

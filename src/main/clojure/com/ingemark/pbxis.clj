@@ -7,7 +7,7 @@
            (ring.middleware [json-params :refer (wrap-json-params)]
                             [file :refer (wrap-file)])
            (com.ingemark.clojure [config :as cfg] [logger :refer :all]))
-  (import (org.asteriskjava.manager ManagerConnectionFactory ManagerEventListener)))
+  (import org.asteriskjava.manager.ManagerConnectionFactory))
 
 (defn ok [f & args] (fn [_] (let [ret (apply f args)]
                               ((if (nil? ret) r/not-found r/response) (json/json-str ret)))))
@@ -18,7 +18,15 @@
    ["agent" id &]
    [[] {:post [{:strs [queues]} (ok ps/config-agnt id queues)]
         :get (ok ps/events-for id)}
-    ["place-call"] {:post [{:strs [phone]} (ok ps/originate-call id phone)]}]))
+    ["originate"] {:post [{:strs [phone]} (ok ps/originate-call id phone)]}
+    ["queue" action] {:post [{:as params}
+                             (ok ps/queue-action action id
+                                 (select-keys params
+                                              (into ["queue"]
+                                                    (condp = action
+                                                      "add" ["memberName" "paused"]
+                                                      "pause" ["paused"]
+                                                      []))))]}]))
 
 (defonce server (atom nil))
 
@@ -28,13 +36,7 @@
    (doto (-> (apply #(ManagerConnectionFactory. %1 %2 %3)
                     (mapv ((cfg/settings) :ami) [:ip-address :username :password]))
              .createManagerConnection)
-     (.addEventListener
-      (reify ManagerEventListener
-        (onManagerEvent [_ event]
-          (ps/handle-ami-event
-           (assoc (bean event) :event-type
-                  (let [c (-> event .getClass .getSimpleName)]
-                    (.substring c 0 (- (.length c) (.length "Event")))))))))
+     (.addEventListener ps/ami-listener)
      .login)))
 
 (defn stop []
