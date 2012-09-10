@@ -104,24 +104,21 @@
 (defn- agnt-qs-status [agnt qs]
   (select-keys (into {} (for [[q member] (amiq-status agnt)] [q (member-status member)])) qs))
 
-(defn- full-qs-status []
-  (reduce (fn [m [q & members]] (reduce #(update-in %1 [(digits (:location %2)) q]
-                                                    (constantly (member-status %2)))
-                                        m members))
-          {}
-          (amiq-status nil)))
-
 (defn- full-update-agent-amiq-status []
   (locking lock
     (let [now-agnt-state @agnt-state
-          full-status (full-qs-status)]
+          full-status (reduce (fn [m [q & members]]
+                                (reduce #(update-in %1 [(digits (:location %2)) q]
+                                                    (constantly (member-status %2)))
+                                        m members))
+                              {}
+                              (amiq-status nil))]
       (swap! agnt-state
              (fn [agnt-state]
                (reduce (fn [agnt-state agnt]
                          (update-in agnt-state [agnt :amiq-status]
-                                    (fn [st]
-                                      (merge (into {} (for [q (keys st)] [q "loggedoff"])))
-                                      (full-status agnt))))
+                                    #(merge (into {} (for [q (keys %)] [q "loggedoff"])))
+                                    (full-status agnt)))
                        agnt-state
                        (keys agnt-state))))
       (into {} (for [[agnt state] now-agnt-state]
@@ -131,9 +128,7 @@
   (locking lock
     (let [amiq-state #((:amiq-status (% agnt)) q)
           now-state (amiq-state @agnt-state)
-          new-state (amiq-state
-                     (swap! agnt-state (fn [agnt-state]
-                                         (update-in agnt-state [agnt :amiq-status] assoc q st))))]
+          new-state (amiq-state (swap! agnt-state update-in [agnt :amiq-status] assoc q st))]
       (when (not= now-state new-state) {q new-state}))))
 
 (defn config-agnt [agnt qs]
