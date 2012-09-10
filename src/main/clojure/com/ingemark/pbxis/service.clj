@@ -94,12 +94,17 @@
 (defn- member-status [member]
   (let [p (:paused member), s (:status member)]
     (cond (nil? p) "loggedoff"
-          (#{0 4} s) "unknown"
+          (= 4 s) "invalid"
           (true? p) "paused"
-          (= 1 s) "available"
-          (#{2 3 7} s) "busy"
-          (= 6 s) "ringing"
-          (= 5 s) "unavailable")))
+          :else (condp = s
+                  0 "unknown"
+                  1 "available"
+                  2 "inuse"
+                  3 "busy"
+                  5 "unavailable"
+                  6 "ringing"
+                  7 "ringinuse"
+                  8 "onhold"))))
 
 (defn- agnt-qs-status [agnt qs]
   (select-keys (into {} (for [[q member] (amiq-status agnt)] [q (member-status member)])) qs))
@@ -232,9 +237,18 @@
         "ExtensionStatus"
         (enq-event (event :exten) "extensionStatus" (extension-status (event :status)))
         "QueueMemberStatus"
-        (when-let [upd (partial-update-agent-amiq-status
-                        (digits (event :location)) (event :queue) (member-status event))]
-          (enq-event (event :location) "queueMemberStatus" upd))
+        (locking lock
+          (let [q (event :queue), agnt (digits (event :location))
+                amiq-state #((:amiq-status (% agnt)) q)
+                now-state (amiq-state @agnt-state)
+                new-state (amiq-state (swap! agnt-state update-in [agnt :amiq-status]
+                                             assoc q (member-status event)))]
+            (when (not= now-state new-state)
+              (enq-event agnt "queueMemberStatus" {q new-state}))))
+        "QueueMemberRemoved"
+        (let [q (event :queue), agnt (digits (event :location))]
+          (swap! agnt-state update-in [agnt :amiq-status q] (constantly "loggedoff"))
+          (enq-event agnt "queueMemberStatus" {q "loggedoff"}))
         nil))))
 
 (def ^:private ami-listener
