@@ -32,6 +32,8 @@
 
 (defonce ^:private uniqueid-actionid (atom {}))
 
+(defn- >?> [& fs] (reduce #(when %1 (%1 %2)) fs))
+
 (defn- action [type params]
   (let [a (Reflector/invokeConstructor
            (RT/classForName (<< "org.asteriskjava.manager.action.~{type}Action"))
@@ -137,7 +139,7 @@
 
 (defn- single-update-agent-amiq-status [agnt q st]
   (locking lock
-    (let [change? (not= st ((:amiq-status (@agnt-state agnt)) q))]
+    (let [change? (not= st (>?> @agnt-state agnt :amiq-status q))]
       (when change? (swap! agnt-state update-in [agnt :amiq-status] assoc q st))
       change?)))
 
@@ -153,7 +155,8 @@
         (let [rndkey (rnd-key), eventq (empty-q)]
           (if s
             (do (replace-rndkey agnt (:rndkey s) rndkey)
-                (swap! agnt-state update-in [agnt] assoc :rndkey rndkey :eventq eventq))
+                (swap! agnt-state update-in [agnt] assoc :rndkey rndkey :eventq eventq)
+                (.add (s :eventq) ["requestInvalidated"]))
             (let [q-status (agnt-qs-status agnt qs)]
               (swap! rndkey-agnt assoc rndkey agnt)
               (swap! agnt-state assoc agnt {:rndkey rndkey :amiq-status q-status :eventq eventq})))

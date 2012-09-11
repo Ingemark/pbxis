@@ -13,7 +13,7 @@
 (defn ok [f & args] (fn [_] (let [ret (apply f args)]
                               ((if (nil? ret) r/not-found r/response) (json/json-str ret)))))
 
-(defn wrap-log-request [h] #(spy "HTTP response" (h (spy "HTTP request" %))))
+(defn wrap-log-request [handle] #(->> % (spy "HTTP request") handle (spy "HTTP response")))
 
 (def app-main
   (app
