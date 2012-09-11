@@ -9,9 +9,9 @@
           (clojure.lang Reflector RT)))
 
 (defn- poll-timeout [] (-> (cfg/settings) :poll-timeout-seconds))
-(defn- unsub-delay [] (+ (poll-timeout) 2))
+(defn- unsub-delay [] (quot (* (poll-timeout) 3) 2))
 (defn- originate-timeout [] (-> (cfg/settings) :originate-timeout-seconds))
-(def EVENT-BURST-MILLIS 50)
+(def EVENT-BURST-MILLIS 100)
 (def ACTIONID-TTL-SECONDS 10)
 
 (defn- empty-q [] (LinkedBlockingQueue.))
