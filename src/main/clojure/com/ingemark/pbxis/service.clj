@@ -91,6 +91,9 @@
           []
           (send-eventaction (action "QueueStatus" {:member (agnt->location agnt)}))))
 
+(def extension-status {0 "not_inuse" 1 "inuse" 2 "busy" 4 "unavailable" 8 "ringing"
+                       16 "onhold"})
+
 (defn- member-status [member]
   (let [p (:paused member), s (:status member)]
     (cond (nil? p) "loggedoff"
@@ -98,7 +101,7 @@
           (true? p) "paused"
           :else (condp = s
                   0 "unknown"
-                  1 "available"
+                  1 "not_inuse"
                   2 "inuse"
                   3 "busy"
                   5 "unavailable"
@@ -106,10 +109,13 @@
                   7 "ringinuse"
                   8 "onhold"))))
 
+(defn- digits [s] (re-find #"\d+" (or s "")))
+
 (defn- agnt-qs-status [agnt qs]
   (select-keys (into {} (for [[q member] (amiq-status agnt)] [q (member-status member)])) qs))
 
 (defn- full-update-agent-amiq-status []
+  (loginfo "Refreshing Asterisk queue status")
   (locking lock
     (let [now-agnt-state @agnt-state
           full-status (reduce (fn [m [q & members]]
@@ -129,12 +135,11 @@
       (into {} (for [[agnt state] now-agnt-state]
                  [agnt (second (d/diff (state :amiq-status) (full-status agnt)))])))))
 
-(defn- partial-update-agent-amiq-status [agnt q st]
+(defn- single-update-agent-amiq-status [agnt q st]
   (locking lock
-    (let [amiq-state #((:amiq-status (% agnt)) q)
-          now-state (amiq-state @agnt-state)
-          new-state (amiq-state (swap! agnt-state update-in [agnt :amiq-status] assoc q st))]
-      (when (not= now-state new-state) {q new-state}))))
+    (let [change? (not= st ((:amiq-status (@agnt-state agnt)) q))]
+      (when change? (swap! agnt-state update-in [agnt :amiq-status] assoc q st))
+      change?)))
 
 (defn config-agnt [agnt qs]
   (logdebug "config-agnt" agnt qs)
@@ -167,8 +172,6 @@
           (doto evs (.add head) drain-events)))
       evs)))
 
-(defn- digits [s] (re-find #"\d+" (or s "")))
-
 (defn- enq-event [agnt k & vs]
   (when-let [q (-?> (@agnt-state (digits agnt)) :eventq)]
     (.add q (spy "enq-event" agnt (vec (cons k vs))))))
@@ -180,9 +183,6 @@
 (def ^:private ignored-events
   #{"VarSet" "NewState" "NewChannel" "NewExten" "NewCallerId" "NewAccountCode" "ChannelUpdate"
     "RtcpSent" "RtcpReceived" "PeerStatus"})
-
-(def extension-status {0 "free" 1 "busy" 2 "busy" 3 "busy" 4 "unavailable" 8 "ringing"
-                       16 "onhold"})
 
 (def ^:private activating-eventfilter (atom nil))
 
@@ -203,8 +203,9 @@
     (let [unique-id (event :uniqueId)]
       (condp = t
         "Connect"
-        (doseq [[agnt upd] (full-update-agent-amiq-status) :when upd]
-          (enq-event agnt "queueMemberStatus" upd))
+        (schedule #(doseq [[agnt upd] (full-update-agent-amiq-status) :when upd]
+                     (enq-event agnt "queueMemberStatus" upd))
+                  0 TimeUnit/SECONDS)
         "Join"
         (broadcast-qcount event)
         "Leave"
@@ -238,20 +239,28 @@
         (enq-event (event :exten) "extensionStatus" (extension-status (event :status)))
         "QueueMemberStatus"
         (locking lock
-          (let [q (event :queue), agnt (digits (event :location))
-                amiq-state #((:amiq-status (% agnt)) q)
-                now-state (amiq-state @agnt-state)
-                new-state (amiq-state (swap! agnt-state update-in [agnt :amiq-status]
-                                             assoc q (member-status event)))]
-            (when (not= now-state new-state)
-              (enq-event agnt "queueMemberStatus" {q new-state}))))
+          (let [q (event :queue), agnt (digits (event :location)), st (member-status event)]
+            (when (single-update-agent-amiq-status agnt q st)
+              (enq-event agnt "queueMemberStatus" {q st}))))
+        "QueueMemberAdded"
+        (let [q (event :queue), agnt (digits (event :location))
+              st (member-status event)]
+          (swap! agnt-state update-in [agnt :amiq-status q] (constantly st))
+          (enq-event agnt "queueMemberStatus" {q st}))
         "QueueMemberRemoved"
         (let [q (event :queue), agnt (digits (event :location))]
           (swap! agnt-state update-in [agnt :amiq-status q] (constantly "loggedoff"))
           (enq-event agnt "queueMemberStatus" {q "loggedoff"}))
+        "QueueMemberPaused"
+        (let [q (event :queue), agnt (digits (event :location))
+              paused? (event :paused)]
+          (schedule #(let [st (if paused? "paused" ((agnt-qs-status agnt [q]) q))]
+                       (when (single-update-agent-amiq-status agnt q st)
+                         (enq-event agnt "queueMemberStatus" {q st})))
+                    0 TimeUnit/SECONDS))
         nil))))
 
-(def ^:private ami-listener
+(def ami-listener
   (reify ManagerEventListener
     (onManagerEvent [_ event] (handle-ami-event (event-bean event)))))
 

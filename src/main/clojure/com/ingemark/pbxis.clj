@@ -31,13 +31,11 @@
 (defonce server (atom nil))
 
 (defn ami-connect []
-  (reset!
-   ps/ami-connection
-   (doto (-> (apply #(ManagerConnectionFactory. %1 %2 %3)
-                    (mapv ((cfg/settings) :ami) [:ip-address :username :password]))
-             .createManagerConnection)
-     (.addEventListener ps/ami-listener)
-     .login)))
+  (let [c (reset! ps/ami-connection
+                  (-> (apply #(ManagerConnectionFactory. %1 %2 %3)
+                             (mapv ((cfg/settings) :ami) [:ip-address :username :password]))
+                      .createManagerConnection))]
+    (doto c (.addEventListener ps/ami-listener) .login)))
 
 (defn stop []
   (println "Shutting down")
@@ -50,8 +48,8 @@
   (stop)
   (cfg/initialize nil)
   (logdebug "Settings" (cfg/settings))
-  (ami-connect)
   (reset! ps/scheduler (java.util.concurrent.Executors/newSingleThreadScheduledExecutor))
+  (ami-connect)
   (reset! server (run-jetty (-> (var app-main)
                                 (wrap-file "static-content"))
                             (assoc (cfg/settings) :join? false))))
