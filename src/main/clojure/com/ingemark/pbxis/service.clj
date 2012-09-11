@@ -141,36 +141,43 @@
       (when change? (swap! agnt-state update-in [agnt :amiq-status] assoc q st))
       change?)))
 
+(defn- replace-rndkey [agnt old new]
+  (swap! rndkey-agnt #(-> % (dissoc old) (assoc new agnt))))
+
 (defn config-agnt [agnt qs]
   (logdebug "config-agnt" agnt qs)
   (locking lock
     (swap! amiq-agnts update-amiq-agnts agnt qs)
     (let [s (@agnt-state agnt)]
       (if (seq qs)
-        (let [q-status (agnt-qs-status agnt qs)]
-          (when-not s
-            (let [rndkey (rnd-key)]
+        (let [rndkey (rnd-key), eventq (empty-q)]
+          (if s
+            (do (replace-rndkey agnt (:rndkey s) rndkey)
+                (swap! agnt-state update-in [agnt] assoc :rndkey rndkey :eventq eventq))
+            (let [q-status (agnt-qs-status agnt qs)]
               (swap! rndkey-agnt assoc rndkey agnt)
-              (swap! agnt-state assoc agnt {:rndkey rndkey :amiq-status q-status :eventq (empty-q)})))
+              (swap! agnt-state assoc agnt {:rndkey rndkey :amiq-status q-status :eventq eventq})))
           (reschedule-agnt-unsubscriber agnt)
-          {:agent agnt :key ((@agnt-state agnt) :rndkey) :queues q-status})
+          {:agent agnt :key rndkey :queues ((@agnt-state agnt) :amiq-status)})
         (do
           (swap! rndkey-agnt dissoc (:rndkey s))
           (swap! agnt-state dissoc agnt)
           (<< "Agent ~{agnt} unsubscribed"))))))
 
 (defn events-for [agnt-key]
-  (when-let [q (locking lock
-                 (when-let [agnt (@rndkey-agnt agnt-key)]
-                   (reschedule-agnt-unsubscriber agnt)
-                   (:eventq (@agnt-state agnt))))]
+  (when-let [[q rndkey] (locking lock
+                          (when-let [agnt (@rndkey-agnt agnt-key)]
+                            (let [rndkey (rnd-key)]
+                              (replace-rndkey agnt agnt-key rndkey)
+                              (reschedule-agnt-unsubscriber agnt)
+                              [(:eventq (@agnt-state agnt)) rndkey])))]
     (let [drain-events #(.drainTo q %)
           evs (doto (java.util.ArrayList.) drain-events)]
       (when-not (seq evs)
         (when-let [head (.poll q (poll-timeout) TimeUnit/SECONDS)]
           (Thread/sleep EVENT-BURST-MILLIS)
           (doto evs (.add head) drain-events)))
-      evs)))
+      {:key rndkey :events evs})))
 
 (defn- enq-event [agnt k & vs]
   (when-let [q (-?> (@agnt-state (digits agnt)) :eventq)]
