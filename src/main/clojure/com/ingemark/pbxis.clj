@@ -5,12 +5,15 @@
            [net.cgrand.moustache :refer (app)]
            [ring.adapter.jetty :refer (run-jetty)]
            (ring.middleware [json-params :refer (wrap-json-params)]
-                            [file :refer (wrap-file)])
+                            [file :refer (wrap-file)]
+                            [file-info :refer (wrap-file-info)])
            (com.ingemark.clojure [config :as cfg] [logger :refer :all]))
   (import org.asteriskjava.manager.ManagerConnectionFactory))
 
 (defn ok [f & args] (fn [_] (let [ret (apply f args)]
                               ((if (nil? ret) r/not-found r/response) (json/json-str ret)))))
+
+(defn wrap-log-request [h] #(spy "HTTP response" (h (spy "HTTP request" %))))
 
 (def app-main
   (app
@@ -51,5 +54,6 @@
   (reset! ps/scheduler (java.util.concurrent.Executors/newSingleThreadScheduledExecutor))
   (ami-connect)
   (reset! server (run-jetty (-> (var app-main)
-                                (wrap-file "static-content"))
+                                (wrap-file "static-content")
+                                wrap-file-info)
                             (assoc (cfg/settings) :join? false))))
