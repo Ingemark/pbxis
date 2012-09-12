@@ -1,28 +1,29 @@
-var q_status = {}
-var ext_status = "unknown"
+function pbx_agent_status(queue, status) {}
+function pbx_extension_status(status) {}
+function pbx_queue_count(queue, count) {}
+function pbx_connection(is_connected) {}
 
-function log_queue_state() {
-    $.each(q_status, function(k,v) {console.log("New queue state: " + k + ":" + v)});
-}
 
 function pbx_long_poll(key) {
     $.getJSON("/agent/"+key, function(r) {
         if (handle_events(r.events)) pbx_long_poll(r.key);
-    });
+        else pbx_connection(false);
+    }).error(function() {pbx_connection(false)});
 }
 
 function handle_events(events) {
     var result = true;
     $.each(events, function(_, e) {
-        console.log("Event " + e);
+        //console.log("Event " + e);
         switch (e[0]) {
         case "queueMemberStatus":
-            $.each(e[1], function(k,v) {q_status[k] = v});
-            log_queue_state();
+            $.each(e[1], pbx_agent_status);
             break;
         case "extensionStatus":
-            ext_status = e[1];
-            console.log("New extension status: " + ext_status);
+            pbx_extension_status(e[1]);
+            break;
+        case "queueCount":
+            $.each(e[1], pbx_queue_count);
             break;
         case "requestInvalidated": result = false;
         }
@@ -30,18 +31,17 @@ function handle_events(events) {
     return result;
 }
 
-function pbx_start() {
+function pbx_start(agent, queues) {
     $.ajax(
         {
             type: "POST",
-            url: "/agent/148",
-            data: JSON.stringify({queues: ["700", "3000"]}),
+            url: "/agent/"+agent,
+            data: JSON.stringify({queues: queues}),
             contentType: "application/json; charset=utf-8",
             dataType: "json",
             success: function(r) {
-                q_status = r.queues;
-                log_queue_state();
-                pbx_long_poll(r.key);
+                pbx_connection(true);
+                pbx_long_poll(r);
             }
         }
     )

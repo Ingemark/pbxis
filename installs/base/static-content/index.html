@@ -7,13 +7,32 @@
 src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"
 type="text/javascript"></script>
 <script type="text/javascript" src="pbxis.js"></script>
-<script type="text/javascript">pbx_start()</script>
+<script type="text/javascript">
+  function pbx_agent_status(queue, status) {
+    if (queue == '700') $('#agent_status').html(status);
+  }
+  function pbx_extension_status(status) {
+    $('#ext_status').html(status);
+  }
+  function pbx_queue_count(queue, count) {
+    if (queue == '700') $('#queue_count').html(count)
+  }
+  function pbx_connection(is_connected) {
+    $('#connection').html(is_connected? "connected" : "disconnected");
+    if (!is_connected) 
+      $.each(['agent_status','ext_status','queue_count'],
+      function(_,id) { $('#'+id).html('unknown'); })
+  }
+  $(function() { pbx_start("148", ["700", "3000"]);})
+</script>
 <body>
-<h1></h1>
-
+<table border="1px">
+  <tr><td align="right">Connection</td><td><span id="connection">disconnected</span></td></tr>
+  <tr><td align="right">Extension status</td><td><span id="ext_status">unknown</span></td></tr>
+  <tr><td align="right">Agent status</td><td><span id="agent_status">unknown</span></td></tr>
+  <tr><td align="right">Queue count</td><td><span id="queue_count">unknown</span></td></tr>
+</table>
 
 
 <hr>
-<address></address>
-<!-- hhmts start -->Last modified: Tue Sep 11 13:46:38 CEST 2012 <!-- hhmts end -->
 </body> </html>
