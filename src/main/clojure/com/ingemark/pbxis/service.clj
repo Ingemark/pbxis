@@ -9,7 +9,7 @@
           (clojure.lang Reflector RT)))
 
 (defn- poll-timeout [] (-> (cfg/settings) :poll-timeout-seconds))
-(defn- unsub-delay [] (quot (* (poll-timeout) 3) 2))
+(defn- unsub-delay [] [(inc (quot (poll-timeout) 2)) TimeUnit/SECONDS])
 (defn- agnt-gc-delay [] [(-> (cfg/settings) :agent-gc-delay-minutes) TimeUnit/SECONDS])
 (defn- originate-timeout [] (-> (cfg/settings) :originate-timeout-seconds))
 (def EVENT-BURST-MILLIS 100)
