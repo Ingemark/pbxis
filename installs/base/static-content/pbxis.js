@@ -1,7 +1,8 @@
+function pbx_connection(is_connected) {}
 function pbx_agent_status(queue, status) {}
 function pbx_extension_status(status) {}
 function pbx_queue_count(queue, count) {}
-function pbx_connection(is_connected) {}
+function pbx_phone_num(num) {}
 
 
 function pbx_long_poll(key) {
@@ -24,6 +25,9 @@ function handle_events(events) {
             break;
         case "queueCount":
             $.each(e[1], pbx_queue_count);
+            break;
+        case "phoneNum":
+            pbx_phone_num(e[1]);
             break;
         case "requestInvalidated": result = false;
         }

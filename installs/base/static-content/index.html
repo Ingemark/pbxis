@@ -9,6 +9,12 @@ type="text/javascript"></script>
 <script type="text/javascript" src="pbxis.js"></script>
 <script type="text/javascript">
   var my_q = 'q0'
+  function pbx_connection(is_connected) {
+    $('#connection').html(is_connected? "connected" : "disconnected");
+    if (!is_connected) 
+      $.each(['agent_status','ext_status','queue_count'],
+      function(_,id) { $('#'+id).html('unknown'); })
+  }
   function pbx_agent_status(queue, status) {
     if (queue == my_q) $('#agent_status').html(status);
   }
@@ -18,11 +24,8 @@ type="text/javascript"></script>
   function pbx_queue_count(queue, count) {
     if (queue == my_q) $('#queue_count').html(count)
   }
-  function pbx_connection(is_connected) {
-    $('#connection').html(is_connected? "connected" : "disconnected");
-    if (!is_connected) 
-      $.each(['agent_status','ext_status','queue_count'],
-      function(_,id) { $('#'+id).html('unknown'); })
+  function pbx_phone_num(num) {
+    $('#phone_num').html(num);
   }
   $(function() { pbx_start("148", [my_q, 'q1']);})
 </script>
@@ -32,6 +35,7 @@ type="text/javascript"></script>
   <tr><td align="right">Extension status</td><td><span id="ext_status">unknown</span></td></tr>
   <tr><td align="right">Agent status</td><td><span id="agent_status">unknown</span></td></tr>
   <tr><td align="right">Queue count</td><td><span id="queue_count">unknown</span></td></tr>
+  <tr><td align="right">Phone number</td><td><span id="phone_num">unknown</span></td></tr>
 </table>
 
 

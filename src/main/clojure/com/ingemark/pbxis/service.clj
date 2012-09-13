@@ -13,7 +13,7 @@
 (defn- agnt-gc-delay [] [(-> (cfg/settings) :agent-gc-delay-minutes) TimeUnit/SECONDS])
 (defn- originate-timeout [] (-> (cfg/settings) :originate-timeout-seconds))
 (def EVENT-BURST-MILLIS 100)
-(def ACTIONID-TTL-SECONDS 10)
+(def GRACE-PERIOD-SECONDS 5)
 
 (defn- empty-q [] (LinkedBlockingQueue.))
 
@@ -33,7 +33,7 @@
 
 (defonce ^:private agnt-gc (atom {}))
 
-(defonce ^:private uniqueid-actionid (atom {}))
+(defonce ^:private memory (atom {}))
 
 (defn- >?> [& fs] (reduce #(when %1 (%1 %2)) fs))
 
@@ -69,7 +69,13 @@
    .getEvents
    (mapv event-bean)))
 
-(defn- schedule [task delay unit] (.schedule @scheduler task delay unit))
+(defn- schedule [task & [delay unit]] (.schedule @scheduler task (or delay 0) (or unit TimeUnit/SECONDS)))
+
+(defn- remember [k v timeout]
+  (swap! memory assoc k v)
+  (schedule #(swap! memory dissoc k) timeout))
+
+(defn- recall [k] (when-let [v (@memory k)] (swap! memory dissoc k) v))
 
 (defn- agnt->location [agnt] (when agnt (str ((cfg/settings) :channel-prefix) agnt)))
 
@@ -207,7 +213,8 @@
             (swap! agnt-state assoc-in [agnt :amiq-status] (agnt-qs-status agnt qs)))
           (let [st (@agnt-state agnt)]
             (enq-event agnt "extensionStatus" (st :exten-status))
-            (enq-event agnt "queueMemberStatus" (st :amiq-status)))
+            (enq-event agnt "queueMemberStatus" (st :amiq-status))
+            (enq-event agnt "phoneNum" (-?> st :calls first val)))
           (enq-event agnt "queueCount"
                      (into {} (for [[amiq {:keys [cnt]}] (select-keys @amiq-cnt-agnts qs)] [amiq cnt])))
           rndkey)
@@ -248,6 +255,15 @@
 
 (def ^:private activating-eventfilter (atom nil))
 
+(defn- register-call [agnt id phone-num]
+  (let [agnt (digits agnt)]
+    (logdebug "Register call" agnt id phone-num)
+    (swap! agnt-state #(if (% agnt) (if phone-num
+                                      (assoc-in % [agnt :calls id] phone-num)
+                                      (dissoc-in % [agnt :calls id]))
+                           %))
+    (enq-event agnt "phoneNum" (or phone-num (-?> (spy "agnt-state" @agnt-state) :calls first val)))))
+
 (defn- handle-ami-event [event]
   (let [t (:event-type event)]
     (if (ignored-events t)
@@ -259,30 +275,25 @@
                          (send-action
                           (spy (<< "Received unfiltered event ~{t}, privilege ~(event :privilege).")
                                "Sending" (action "Events" {:eventMask "agent,call"})))
-                         (finally (reset! activating-eventfilter nil)))
-                      0 TimeUnit/SECONDS))))
+                         (finally (reset! activating-eventfilter nil)))))))
       (logdebug "AMI event\n" t (dissoc event :event-type :privilege)))
     (let [unique-id (event :uniqueId)]
       (condp = t
         "Connect"
         (schedule #(let [{:keys [agnt-amiqstatus amiq-cnt]} (full-update-agent-amiq-status)]
                      (doseq [[agnt upd] agnt-amiqstatus] (enq-event agnt "queueMemberStatus" upd))
-                     (doseq [[amiq cnt] amiq-cnt] (broadcast-qcount {:queue amiq :count cnt})))
-                  0 TimeUnit/SECONDS)
+                     (doseq [[amiq cnt] amiq-cnt] (broadcast-qcount {:queue amiq :count cnt}))))
         "Join"
         (broadcast-qcount event)
         "Leave"
         (broadcast-qcount event)
         "Dial"
         (when (= (event :subEvent) "Begin")
-          (enq-event (event :channel) "dialOut" (event :srcUniqueId) (-> event :dialString digits))
-          (let [dest-uniqueid (event :destUniqueId), agnt (event :destination)]
-            (if-let [action-id (@uniqueid-actionid (event :srcUniqueId))]
-              (do (enq-event agnt "callPlaced" action-id dest-uniqueid)
-                  (swap! uniqueid-actionid dissoc dest-uniqueid))
-              (enq-event agnt "calledDirectly" dest-uniqueid (event :callerIdNum)))))
+          (register-call (event :channel) (event :srcUniqueId) (-> event :dialString digits))
+          (register-call (event :destination) (event :destUniqueId)
+                         (or (recall (event :srcUniqueId)) (event :callerIdNum))))
         "Hangup"
-        (enq-event (event :channel) "hangup" unique-id)
+        (register-call (event :channel) unique-id nil)
         "AgentCalled"
         (enq-event (event :agentCalled) "agentCalled" unique-id (event :callerIdNum))
         "AgentConnect"
@@ -294,9 +305,7 @@
         "OriginateResponse"
         (let [action-id (event :actionId)]
           (if (= (event :response) "Success")
-            (do (swap! uniqueid-actionid assoc unique-id action-id)
-                (schedule #(swap! uniqueid-actionid dissoc unique-id)
-                          ACTIONID-TTL-SECONDS TimeUnit/SECONDS))
+            (remember unique-id (recall action-id) GRACE-PERIOD-SECONDS)
             (enq-event (event :exten) "placeCallFailed" action-id)))
         "ExtensionStatus"
         (let [status (int->exten-status (event :status))
@@ -323,8 +332,7 @@
               paused? (event :paused)]
           (schedule #(let [st (if paused? "paused" ((agnt-qs-status agnt [q]) q))]
                        (when (update-one-agent-amiq-status agnt q st)
-                         (enq-event agnt "queueMemberStatus" {q st})))
-                    0 TimeUnit/SECONDS))
+                         (enq-event agnt "queueMemberStatus" {q st})))))
         nil))))
 
 (def ami-listener
@@ -335,7 +343,8 @@
 
 (defn originate-call [agnt phone]
   (let [actionid (actionid)
-        context ((cfg/settings) :originate-context)]
+        context ((cfg/settings) :originate-context)
+        tmout (originate-timeout)]
     (when (send-action (action "Originate"
                                {:context context
                                 :exten agnt
@@ -343,8 +352,9 @@
                                 :actionId actionid
                                 :priority (int 1)
                                 :async true})
-                       (originate-timeout))
-      {:actionid actionid})))
+                       tmout)
+      (remember actionid phone (+ tmout GRACE-PERIOD-SECONDS))
+      actionid)))
 
 (defn queue-action [type agnt params]
   (send-action (action (<< "Queue~(upcase-first type)")
