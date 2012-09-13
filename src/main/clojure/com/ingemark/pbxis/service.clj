@@ -1,6 +1,6 @@
 (ns com.ingemark.pbxis.service
   (require [clojure.set :as set] [clojure.data :as d]
-           (clojure.core [incubator :refer (-?> -?>>)] [strint :refer (<<)])
+           (clojure.core [incubator :refer (-?> -?>> dissoc-in)] [strint :refer (<<)])
            (com.ingemark.clojure [config :as cfg] [logger :refer :all]
                                  [utils :refer (upcase-first invoke)]))
   (import org.asteriskjava.manager.ManagerEventListener
@@ -10,6 +10,7 @@
 
 (defn- poll-timeout [] (-> (cfg/settings) :poll-timeout-seconds))
 (defn- unsub-delay [] (quot (* (poll-timeout) 3) 2))
+(defn- agnt-gc-delay [] [(-> (cfg/settings) :agent-gc-delay-minutes) TimeUnit/SECONDS])
 (defn- originate-timeout [] (-> (cfg/settings) :originate-timeout-seconds))
 (def EVENT-BURST-MILLIS 100)
 (def ACTIONID-TTL-SECONDS 10)
@@ -29,6 +30,8 @@
 (defonce ^:private rndkey-agnt (atom {}))
 
 (defonce ^:private agnt-unsubscriber (atom {}))
+
+(defonce ^:private agnt-gc (atom {}))
 
 (defonce ^:private uniqueid-actionid (atom {}))
 
@@ -67,6 +70,16 @@
 
 (defn- schedule [task delay unit] (.schedule @scheduler task delay unit))
 
+(defn- agnt->location [agnt] (when agnt (str ((cfg/settings) :channel-prefix) agnt)))
+
+(defn- amiq-status [amiq agnt]
+  (reduce (fn [vect ev] (condp = (ev :event-type)
+                          "QueueParams" (conj vect [ev])
+                          "QueueMember" (conj (pop vect) (conj (peek vect) ev))
+                          vect))
+          []
+          (send-eventaction (action "QueueStatus" {:member (agnt->location agnt) :queue amiq}))))
+
 (defn- update-amiq-cnt-agnts [amiq-cnt-agnts agnt amiqs]
   (let [add #(if %1 (update-in %1 [:agnts] conj %2) {:agnts #{%2}})
         amiqs-for-add (into #{} amiqs)
@@ -80,23 +93,23 @@
                          #(or % (-?> (amiq-status amiq "$none$") first first :calls))))
             amiq-cnt-agnts (keys amiq-cnt-agnts))))
 
+(defn- set-schedule [task-atom agnt delay task]
+  (let [newsched (when delay
+                   (apply schedule #(locking lock (swap! task-atom dissoc agnt) (task)) delay))]
+    (swap! task-atom update-in [agnt] #(do (-?> % (.cancel false)) newsched))))
+
 (declare ^:private config-agnt)
 
-(defn- reschedule-agnt-unsubscriber [agnt]
-  (let [newsched (schedule (fn [] (config-agnt agnt [])) (unsub-delay) TimeUnit/SECONDS)]
-    (swap! agnt-unsubscriber update-in [agnt] #(do (-?> % (.cancel false)) newsched))))
+(defn- reschedule-agnt-gc [agnt]
+  (set-schedule agnt-gc agnt (agnt-gc-delay) #(config-agnt agnt [])))
+
+(defn- set-agnt-unsubscriber-schedule [agnt reschedule?]
+  (set-schedule agnt-unsubscriber agnt (when reschedule? (unsub-delay))
+                #(do (loginfo "Unsubscribe agent" agnt)
+                     (swap! rndkey-agnt dissoc (@agnt-state :rnd-key))
+                     (swap! agnt-state update-in [agnt] dissoc :rnd-key :eventq))))
 
 (defn- rnd-key [] (-> (java.util.UUID/randomUUID) .toString))
-
-(defn- agnt->location [agnt] (when agnt (str ((cfg/settings) :channel-prefix) agnt)))
-
-(defn- amiq-status [amiq agnt]
-  (reduce (fn [vect ev] (condp = (ev :event-type)
-                          "QueueParams" (conj vect [ev])
-                          "QueueMember" (conj (pop vect) (conj (peek vect) ev))
-                          vect))
-          []
-          (send-eventaction (action "QueueStatus" {:member (agnt->location agnt) :queue amiq}))))
 
 (def extension-status {0 "not_inuse" 1 "inuse" 2 "busy" 4 "unavailable" 8 "ringing"
                        16 "onhold"})
@@ -127,6 +140,7 @@
   (loginfo "Refreshing Asterisk queue status")
   (locking lock
     (let [now-agnt-state @agnt-state
+          now-amiq-cnt-agnts @amiq-cnt-agnts
           amiq-status (amiq-status nil nil)
           all-agnts-status (reduce (fn [m [q-st & members]]
                                      (reduce #(assoc-in %1 [(digits (:location %2)) (:queue q-st)]
@@ -136,8 +150,8 @@
                                    amiq-status)
           all-qs-cnt (into {} (for [[q-st] amiq-status] [(:queue q-st) (:calls q-st)]))]
       (swap! amiq-cnt-agnts
-         #(reduce (fn [amiq-cnt-agnts amiq]
-                    (assoc-in amiq-cnt-agnts [amiq :cnt] (all-qs-cnt amiq))) % (keys %)))
+             #(reduce (fn [amiq-cnt-agnts amiq]
+                        (assoc-in amiq-cnt-agnts [amiq :cnt] (all-qs-cnt amiq))) % (keys %)))
       (swap! agnt-state
              (fn [agnt-state]
                (reduce (fn [agnt-state agnt]
@@ -146,8 +160,14 @@
                                     (all-agnts-status agnt)))
                        agnt-state
                        (keys agnt-state))))
-      (into {} (for [[agnt state] now-agnt-state]
-                 [agnt (second (d/diff (state :amiq-status) (all-agnts-status agnt)))])))))
+      {:amiq-cnt (into {} (for [[amiq {:keys [cnt]}] now-amiq-cnt-agnts
+                               :let [new-cnt (all-qs-cnt amiq)], :when (not= cnt new-cnt)]
+                           [amiq new-cnt]))
+       :agnt-amiqstatus
+       (into {} (for [[agnt state] now-agnt-state
+                      :let [upd (second (d/diff (state :amiq-status) (all-agnts-status agnt)))]
+                      :when upd]
+                  [agnt upd]))})))
 
 (defn- update-one-agent-amiq-status [agnt q st]
   (locking lock
@@ -156,7 +176,8 @@
       change?)))
 
 (defn- replace-rndkey [agnt old new]
-  (swap! rndkey-agnt #(-> % (dissoc old) (assoc new agnt))))
+  (swap! rndkey-agnt #(-> % (dissoc old) (assoc new agnt)))
+  (swap! agnt-state assoc-in [agnt :rndkey] new))
 
 (defn- enq-event [agnt k & vs]
   (when-let [q (-?> (@agnt-state (digits agnt)) :eventq)]
@@ -166,41 +187,47 @@
   (logdebug "config-agnt" agnt qs)
   (locking lock
     (swap! amiq-cnt-agnts update-amiq-cnt-agnts agnt qs)
-    (let [s (@agnt-state agnt)]
+    (let [now-state (@agnt-state agnt)]
       (if (seq qs)
         (let [rndkey (rnd-key), eventq (empty-q)]
-          (reschedule-agnt-unsubscriber agnt)
-          (if s
-            (do (replace-rndkey agnt (:rndkey s) rndkey)
-                (swap! agnt-state update-in [agnt] assoc :rndkey rndkey :eventq eventq)
-                (.add (s :eventq) ["requestInvalidated"]))
-            (let [q-status (agnt-qs-status agnt qs)]
+          (set-agnt-unsubscriber-schedule agnt true)
+          (reschedule-agnt-gc agnt)
+          (if now-state
+            (do (replace-rndkey agnt (:rndkey now-state) rndkey)
+                (swap! agnt-state assoc-in [agnt :eventq] eventq)
+                (-?> now-state :eventq (.add ["requestInvalidated"])))
+            (do
               (swap! rndkey-agnt assoc rndkey agnt)
-              (swap! agnt-state assoc agnt {:rndkey rndkey :amiq-status q-status :eventq eventq})
-              (enq-event agnt "queueMemberStatus" q-status)
-              (enq-event agnt "queueCount"
-                         (into {} (for [[amiq {:keys [cnt]}] (select-keys @amiq-cnt-agnts qs)]
-                                    [amiq cnt])))))
+              (swap! agnt-state assoc agnt {:rndkey rndkey :eventq eventq})))
+          (when (not= (set qs) (-?> now-state :amiq-status keys set))
+            (swap! agnt-state assoc-in agnt :amiq-status (agnt-qs-status agnt qs)))
+          (enq-event agnt "queueMemberStatus" (>?> @agnt-state agnt :amiq-status))
+          (enq-event agnt "queueCount"
+                     (into {} (for [[amiq {:keys [cnt]}] (select-keys @amiq-cnt-agnts qs)] [amiq cnt])))
           rndkey)
         (do
-          (swap! rndkey-agnt dissoc (:rndkey s))
+          (swap! rndkey-agnt dissoc (:rndkey now-state))
           (swap! agnt-state dissoc agnt)
           (<< "Agent ~{agnt} unsubscribed"))))))
 
 (defn events-for [agnt-key]
-  (when-let [[q rndkey] (locking lock
-                          (when-let [agnt (@rndkey-agnt agnt-key)]
-                            (let [rndkey (rnd-key)]
-                              (replace-rndkey agnt agnt-key rndkey)
-                              (reschedule-agnt-unsubscriber agnt)
-                              [(>?> @agnt-state agnt :eventq) rndkey])))]
-    (let [drain-events #(.drainTo q %)
-          evs (doto (java.util.ArrayList.) drain-events)]
-      (when-not (seq evs)
-        (when-let [head (.poll q (poll-timeout) TimeUnit/SECONDS)]
-          (Thread/sleep EVENT-BURST-MILLIS)
-          (doto evs (.add head) drain-events)))
-      {:key rndkey :events evs})))
+  (when-let [[agnt q rndkey] (locking lock
+                               (when-let [agnt (@rndkey-agnt agnt-key)]
+                                 (when-let [q (>?> @agnt-state agnt :eventq)]
+                                   (let [rndkey (rnd-key)]
+                                     (replace-rndkey agnt agnt-key rndkey)
+                                     (reschedule-agnt-gc agnt)
+                                     (set-agnt-unsubscriber-schedule agnt false)
+                                     [agnt q rndkey]))))]
+    (try
+      (let [drain-events #(.drainTo q %)
+            evs (doto (java.util.ArrayList.) drain-events)]
+        (when-not (seq evs)
+          (when-let [head (.poll q (poll-timeout) TimeUnit/SECONDS)]
+            (Thread/sleep EVENT-BURST-MILLIS)
+            (doto evs (.add head) drain-events)))
+        {:key rndkey :events evs})
+      (finally (set-agnt-unsubscriber-schedule agnt true)))))
 
 (defn- broadcast-qcount [ami-event]
   (locking lock
@@ -232,8 +259,9 @@
     (let [unique-id (event :uniqueId)]
       (condp = t
         "Connect"
-        (schedule #(doseq [[agnt upd] (full-update-agent-amiq-status) :when upd]
-                     (enq-event agnt "queueMemberStatus" upd))
+        (schedule #(let [{:keys [agnt-amiqstatus amiq-cnt]} (full-update-agent-amiq-status)]
+                     (doseq [[agnt upd] agnt-amiqstatus] (enq-event agnt "queueMemberStatus" upd))
+                     (doseq [[amiq cnt] amiq-cnt] (broadcast-qcount {:queue amiq :count cnt})))
                   0 TimeUnit/SECONDS)
         "Join"
         (broadcast-qcount event)
