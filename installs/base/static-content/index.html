@@ -8,14 +8,15 @@ src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"
 type="text/javascript"></script>
 <script type="text/javascript" src="pbxis.js"></script>
 <script type="text/javascript">
+  var my_q = 'q0'
   function pbx_agent_status(queue, status) {
-    if (queue == '700') $('#agent_status').html(status);
+    if (queue == my_q) $('#agent_status').html(status);
   }
   function pbx_extension_status(status) {
     $('#ext_status').html(status);
   }
   function pbx_queue_count(queue, count) {
-    if (queue == '700') $('#queue_count').html(count)
+    if (queue == my_q) $('#queue_count').html(count)
   }
   function pbx_connection(is_connected) {
     $('#connection').html(is_connected? "connected" : "disconnected");
@@ -23,7 +24,7 @@ type="text/javascript"></script>
       $.each(['agent_status','ext_status','queue_count'],
       function(_,id) { $('#'+id).html('unknown'); })
   }
-  $(function() { pbx_start("148", ["700", "3000"]);})
+  $(function() { pbx_start("148", [my_q, 'q1']);})
 </script>
 <body>
 <table border="1px">
