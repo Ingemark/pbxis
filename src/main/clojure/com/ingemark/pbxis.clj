@@ -29,7 +29,7 @@
                                                     (condp = action
                                                       "add" ["memberName" "paused"]
                                                       "pause" ["paused"]
-                                                      []))))]}]))
+                                                      "remove" []))))]}]))
 
 (defonce server (atom nil))
 
