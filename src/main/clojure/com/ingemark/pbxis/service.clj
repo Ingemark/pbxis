@@ -227,9 +227,9 @@
   (when-let [[agnt q rndkey] (locking lock
                                (when-let [agnt (@rndkey-agnt agnt-key)]
                                  (when-let [q (>?> @agnt-state agnt :eventq)]
+                                   (reschedule-agnt-gc agnt)
                                    (let [rndkey (rnd-key)]
                                      (replace-rndkey agnt agnt-key rndkey)
-                                     (reschedule-agnt-gc agnt)
                                      (set-agnt-unsubscriber-schedule agnt false)
                                      [agnt q rndkey]))))]
     (try
