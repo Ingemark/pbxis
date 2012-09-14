@@ -84,12 +84,12 @@
                                                               %)))
 
 (defn- amiq-status [amiq agnt]
-  (reduce (fn [vect ev] (condp = (ev :event-type)
-                          "QueueParams" (conj vect [ev])
-                          "QueueMember" (conj (pop vect) (conj (peek vect) ev))
-                          vect))
-          []
-          (send-eventaction (action "QueueStatus" {:member (agnt->location agnt) :queue amiq}))))
+  (->> (send-eventaction (action "QueueStatus" {:member (agnt->location agnt) :queue amiq}))
+       (reduce (fn [vect ev] (condp = (ev :event-type)
+                               "QueueParams" (conj vect [ev])
+                               "QueueMember" (conj (pop vect) (conj (peek vect) ev))
+                               vect))
+               [])))
 
 (defn- update-amiq-cnt-agnts [amiq-cnt-agnts agnt amiqs]
   (let [add #(if %1 (update-in %1 [:agnts] conj %2) {:agnts #{%2}})
