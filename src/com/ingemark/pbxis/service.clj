@@ -167,7 +167,7 @@
   (locking lock
     (let [now-agnt-state @agnt-state
           now-amiq-cnt-agnts @amiq-cnt-agnts
-          amiq-status (amiq-status nil nil)
+          amiq-status (mapcat #(amiq-status % nil) (keys now-amiq-cnt-agnts))
           all-agnts-status (reduce (fn [m [q-st & members]]
                                      (reduce #(assoc-in %1 [(digits (:location %2)) (:queue q-st)]
                                                         (event->member-status %2))
