@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration scan="true" scanInterval="10 seconds">
-  <property name="logdir" value="../logs/"/>
+  <property name="logdir" value="logs/"/>
   <property name="arcend" value=".log.%i.gz"/>
   <property name="longpattern" value="%d{yyyy-MM-dd HH:mm:ss} %thread %-5le %lo{25} - %msg %rEx%n"/>
   <property name="shortpattern" value="%d{yyyy-MM-dd HH:mm:ss} %-5le - %msg %rEx%n"/>

@@ -1,0 +1,165 @@
+2012-09-14 13:55:07 Swank REPL Thread DEBUG com.ingemark.pbxis - Settings {:originate-timeout-seconds 45,
+ :agent-gc-delay-minutes 15,
+ :originate-context "internal",
+ :ami
+ {:username "accm", :ip-address "192.168.18.30", :password "h2e9d49"},
+ :port 58615,
+ :channel-prefix "SCCP/",
+ :poll-timeout-seconds 5} 
+2012-09-14 13:55:07 Swank REPL Thread INFO  o.a.m.i.ManagerConnectionImpl - Connecting to 192.168.18.30:5038 
+2012-09-14 13:55:08 Asterisk-Java ManagerConnection-0-Reader-0 INFO  o.a.m.i.ManagerConnectionImpl - Connected via Asterisk Call Manager/1.1 
+2012-09-14 13:55:08 Swank REPL Thread INFO  o.a.m.i.ManagerConnectionImpl - Successfully logged in 
+2012-09-14 13:55:08 Swank REPL Thread INFO  o.a.m.i.ManagerConnectionImpl - Determined Asterisk version: Asterisk 1.6 
+2012-09-14 13:55:08 pool-2-thread-1 INFO  c.ingemark.pbxis.service - Refreshing Asterisk queue status 
+2012-09-14 13:55:08 Swank REPL Thread INFO  o.e.jetty.server.Server - jetty-7.6.1.v20120215 
+2012-09-14 13:55:08 pool-2-thread-1 DEBUG c.ingemark.pbxis.service - org.asteriskjava.manager.response.ManagerResponse: actionId='null'; message='Queue status will follow'; response='Success'; uniqueId='null'; systemHashcode=1696945365 
+2012-09-14 13:55:08 Swank REPL Thread INFO  o.e.j.s.AbstractConnector - Started SelectChannelConnector@0.0.0.0:58615 
+2012-09-14 13:55:31 qtp742166006-33 DEBUG c.ingemark.pbxis.service - config-agnt 148 ("q1" "q2") 
+2012-09-14 13:55:31 qtp742166006-33 DEBUG c.ingemark.pbxis.service - org.asteriskjava.manager.response.ManagerResponse: actionId='null'; message='Queue status will follow'; response='Success'; uniqueId='null'; systemHashcode=1028863272 
+2012-09-14 13:55:31 qtp742166006-33 DEBUG c.ingemark.pbxis.service - org.asteriskjava.manager.response.ManagerResponse: actionId='null'; message='Queue status will follow'; response='Success'; uniqueId='null'; systemHashcode=1886692243 
+2012-09-14 13:55:31 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Action response {:context "hint",
+ :dateReceived #inst "2012-09-14T11:55:31.139-00:00",
+ :exten "148",
+ :hint "SCCP/148",
+ :message "Extension Status",
+ :response "Success",
+ :status 0} 
+2012-09-14 13:55:31 qtp742166006-33 DEBUG c.ingemark.pbxis.service - org.asteriskjava.manager.response.ManagerResponse: actionId='null'; message='Queue status will follow'; response='Success'; uniqueId='null'; systemHashcode=2122000604 
+2012-09-14 13:55:31 qtp742166006-33 DEBUG c.ingemark.pbxis.service - enq-event 148 ("extensionStatus" "not_inuse") 
+2012-09-14 13:55:31 qtp742166006-33 DEBUG c.ingemark.pbxis.service - enq-event 148 ("queueMemberStatus" {"q2" "loggedoff", "q1" "loggedon"}) 
+2012-09-14 13:55:31 qtp742166006-33 DEBUG c.ingemark.pbxis.service - enq-event 148 ("phoneNum" nil) 
+2012-09-14 13:55:31 qtp742166006-33 DEBUG c.ingemark.pbxis.service - enq-event 148 ("queueCount" {"q2" 0, "q1" 0}) 
+2012-09-14 13:55:31 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "7d7d9b15-08e0-44a7-b3ed-ffd5702c4906",
+ :events
+ #<ArrayList [["extensionStatus" "not_inuse"], ["queueMemberStatus" {"q2" "loggedoff", "q1" "loggedon"}], ["phoneNum" nil], ["queueCount" {"q2" 0, "q1" 0}]]>} 
+2012-09-14 13:55:36 qtp742166006-36 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "6a7a18ad-dec0-4388-83bc-d83ce337a089", :events #<ArrayList []>} 
+2012-09-14 13:55:41 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "3a042dcc-c0f2-48a8-99ed-fbbf41bcb707", :events #<ArrayList []>} 
+2012-09-14 13:55:46 qtp742166006-32 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "755c28fd-2f17-43a9-b7fa-fe63fac0df89", :events #<ArrayList []>} 
+2012-09-14 13:55:51 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "31b0a24b-2cb9-42aa-99fc-2c8079a9f205", :events #<ArrayList []>} 
+2012-09-14 13:55:56 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "514692fc-7341-401f-9ced-40bab81fe6b3", :events #<ArrayList []>} 
+2012-09-14 13:56:01 qtp742166006-37 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "0e6b43ce-a377-456b-ad1d-9cae0f48bdd6", :events #<ArrayList []>} 
+2012-09-14 13:56:06 qtp742166006-35 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "daccd1e4-2e02-4590-9525-3f59a1ee734a", :events #<ArrayList []>} 
+2012-09-14 13:56:11 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "9e6d61c9-7443-4a32-930b-39efcced2b82", :events #<ArrayList []>} 
+2012-09-14 13:56:16 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "64c8e118-ced6-40b6-985b-ff18bdbe6bf3", :events #<ArrayList []>} 
+2012-09-14 13:56:21 qtp742166006-35 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "a0c68c6c-c56f-4512-91e7-a2cbdb19fb26", :events #<ArrayList []>} 
+2012-09-14 13:56:26 qtp742166006-32 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "8014066e-cda2-421b-97ab-14c098fc6c5b", :events #<ArrayList []>} 
+2012-09-14 13:56:31 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "24254e76-aa50-4226-9c88-8c5ab637ab46", :events #<ArrayList []>} 
+2012-09-14 13:56:36 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "82ca561b-6ba2-4163-807f-b46f9ef851a7", :events #<ArrayList []>} 
+2012-09-14 13:56:41 qtp742166006-36 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "827adb3f-fe61-4360-9d88-9e9ac1247218", :events #<ArrayList []>} 
+2012-09-14 13:56:46 qtp742166006-37 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "63f0c640-fd45-4387-a374-99e67b6e7d72", :events #<ArrayList []>} 
+2012-09-14 13:56:51 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "b6de8b3e-6819-4639-8112-e6f76237be9e", :events #<ArrayList []>} 
+2012-09-14 13:56:56 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "0dcbd611-41d1-4f65-819a-66ff60b5371a", :events #<ArrayList []>} 
+2012-09-14 13:57:01 qtp742166006-37 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "7e39bd12-15a7-45ec-8cbf-2735db05df3a", :events #<ArrayList []>} 
+2012-09-14 13:57:06 qtp742166006-35 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "9089210f-93a6-48e4-a7ea-32bee9b1139b", :events #<ArrayList []>} 
+2012-09-14 13:57:11 qtp742166006-36 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "34fe884f-7f6b-4588-be9e-41b8d058a671", :events #<ArrayList []>} 
+2012-09-14 13:57:16 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "8b40fd19-28e6-4bda-9bdf-4e76ec32a8d1", :events #<ArrayList []>} 
+2012-09-14 13:57:21 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "9d3b7b53-b195-4460-ab57-b212b907d4bd", :events #<ArrayList []>} 
+2012-09-14 13:57:27 qtp742166006-37 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "59195b53-12b8-4289-93f6-e39f0c707218", :events #<ArrayList []>} 
+2012-09-14 13:57:32 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "297e0d8c-56a5-4435-b825-17d5f4e37916", :events #<ArrayList []>} 
+2012-09-14 13:57:37 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "e58301cf-a221-4bfc-ac5a-1d5753816acb", :events #<ArrayList []>} 
+2012-09-14 13:57:41 pool-2-thread-1 DEBUG c.ingemark.pbxis.service - Received unfiltered event VarSet, privilege dialplan,all. Sending org.asteriskjava.manager.action.EventsAction[action='Events',actionid='null',eventmask='agent,call',systemHashcode=662406917] 
+2012-09-14 13:57:41 pool-2-thread-1 DEBUG c.ingemark.pbxis.service - Action response {:dateReceived #inst "2012-09-14T11:57:41.147-00:00",
+ :response "Success"} 
+2012-09-14 13:57:41 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - enq-event 148 ("queueCount" {"q1" 1}) 
+2012-09-14 13:57:41 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - Register call 148 1347623861.455 97772020 
+2012-09-14 13:57:41 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - enq-event 148 ("phoneNum" "97772020") 
+2012-09-14 13:57:41 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - enq-event 148 ("extensionStatus" "ringing") 
+2012-09-14 13:57:41 qtp742166006-32 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "d80af5de-6879-468f-b97d-ffea98e09251",
+ :events
+ #<ArrayList [["queueCount" {"q1" 1}], ["phoneNum" "97772020"], ["extensionStatus" "ringing"]]>} 
+2012-09-14 13:57:46 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "5864270d-71f7-4091-a600-d9f59cf475ad", :events #<ArrayList []>} 
+2012-09-14 13:57:47 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - Register call 148 1347623861.456 #nil 
+2012-09-14 13:57:47 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - agnt-state {"148"
+ {:calls {"1347623861.455" "97772020"},
+  :amiq-status {"q2" "loggedoff", "q1" "loggedon"},
+  :rndkey "d056f55b-ad67-4fef-aa3d-71f159c7a1e3",
+  :eventq #<LinkedBlockingQueue []>,
+  :exten-status "ringing"}} 
+2012-09-14 13:57:47 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - enq-event 148 ("phoneNum" nil) 
+2012-09-14 13:57:47 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - enq-event 148 ("extensionStatus" "not_inuse") 
+2012-09-14 13:57:47 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - enq-event 148 ("queueCount" {"q1" 0}) 
+2012-09-14 13:57:47 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - Register call 149 1347623861.455 #nil 
+2012-09-14 13:57:47 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - agnt-state {"148"
+ {:calls {"1347623861.455" "97772020"},
+  :amiq-status {"q2" "loggedoff", "q1" "loggedon"},
+  :rndkey "d056f55b-ad67-4fef-aa3d-71f159c7a1e3",
+  :eventq
+  #<LinkedBlockingQueue [["extensionStatus" "not_inuse"], ["queueCount" {"q1" 0}]]>,
+  :exten-status "not_inuse"}} 
+2012-09-14 13:57:47 qtp742166006-36 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "d056f55b-ad67-4fef-aa3d-71f159c7a1e3",
+ :events
+ #<ArrayList [["phoneNum" nil], ["extensionStatus" "not_inuse"], ["queueCount" {"q1" 0}]]>} 
+2012-09-14 13:57:51 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - enq-event 148 ("queueCount" {"q1" 1}) 
+2012-09-14 13:57:51 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - Register call 148 1347623871.457 97772020 
+2012-09-14 13:57:51 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - enq-event 148 ("phoneNum" "97772020") 
+2012-09-14 13:57:51 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - enq-event 148 ("extensionStatus" "ringing") 
+2012-09-14 13:57:51 qtp742166006-32 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "5a70180e-93d0-4269-8d0c-07e3acf0db9c",
+ :events
+ #<ArrayList [["queueCount" {"q1" 1}], ["phoneNum" "97772020"], ["extensionStatus" "ringing"]]>} 
+2012-09-14 13:57:56 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - enq-event 148 ("queueCount" {"q1" 0}) 
+2012-09-14 13:57:56 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - enq-event 148 ("extensionStatus" "inuse") 
+2012-09-14 13:57:56 qtp742166006-37 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "00d982ac-391b-4e70-8914-c4e24be8aeb0",
+ :events
+ #<ArrayList [["queueCount" {"q1" 0}], ["extensionStatus" "inuse"]]>} 
+2012-09-14 13:58:00 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - enq-event SCCP/148 ("agentComplete" "1347623871.457" 4 5 nil) 
+2012-09-14 13:58:00 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - Register call 148 1347623871.458 #nil 
+2012-09-14 13:58:00 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - agnt-state {"148"
+ {:calls {"1347623871.457" "97772020", "1347623861.455" "97772020"},
+  :amiq-status {"q2" "loggedoff", "q1" "loggedon"},
+  :rndkey "5cfe9fb0-5944-49eb-85ac-8934f795aaac",
+  :eventq #<LinkedBlockingQueue []>,
+  :exten-status "inuse"}} 
+2012-09-14 13:58:00 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - enq-event 148 ("phoneNum" nil) 
+2012-09-14 13:58:00 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - Register call 149 1347623871.457 #nil 
+2012-09-14 13:58:00 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - agnt-state {"148"
+ {:calls {"1347623871.457" "97772020", "1347623861.455" "97772020"},
+  :amiq-status {"q2" "loggedoff", "q1" "loggedon"},
+  :rndkey "5cfe9fb0-5944-49eb-85ac-8934f795aaac",
+  :eventq #<LinkedBlockingQueue [["phoneNum" nil]]>,
+  :exten-status "inuse"}} 
+2012-09-14 13:58:00 Asterisk-Java ManagerConnection-0-Reader-0 DEBUG c.ingemark.pbxis.service - enq-event 148 ("extensionStatus" "not_inuse") 
+2012-09-14 13:58:00 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "5cfe9fb0-5944-49eb-85ac-8934f795aaac",
+ :events
+ #<ArrayList [["agentComplete" "1347623871.457" 4 5 nil], ["phoneNum" nil], ["extensionStatus" "not_inuse"]]>} 
+2012-09-14 13:58:05 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "77a4ad58-c26e-4236-be28-47851ad4a123", :events #<ArrayList []>} 
+2012-09-14 13:58:10 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "78cebf68-b42d-40e6-a809-0bad92dec8f5", :events #<ArrayList []>} 
+2012-09-14 13:58:15 qtp742166006-36 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "39ac97be-446a-4cf0-b5ed-97a14a6c1d54", :events #<ArrayList []>} 
+2012-09-14 13:58:20 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "18e8ee60-8d5c-41eb-8b9a-afab081b3290", :events #<ArrayList []>} 
+2012-09-14 13:58:25 qtp742166006-32 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "c5ca7cba-c2f3-475d-bb8d-dbab8b43ca7b", :events #<ArrayList []>} 
+2012-09-14 13:58:30 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "6d8dbdb0-3216-4d87-9e8b-61f2f2de0541", :events #<ArrayList []>} 
+2012-09-14 13:58:35 qtp742166006-32 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "b8abd247-fe2c-42d2-baca-408933c3d5b3", :events #<ArrayList []>} 
+2012-09-14 13:58:40 qtp742166006-37 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "69d18613-2753-43d7-a89b-158ad6434d33", :events #<ArrayList []>} 
+2012-09-14 13:58:45 qtp742166006-35 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "5d56c3f3-01cf-458a-921d-bedba0abfb69", :events #<ArrayList []>} 
+2012-09-14 13:58:50 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "86dd1125-1785-407a-af52-b1df978e55a6", :events #<ArrayList []>} 
+2012-09-14 13:58:55 qtp742166006-37 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "bf5ae67f-6776-43b8-b38f-6ca5d7886256", :events #<ArrayList []>} 
+2012-09-14 13:59:00 qtp742166006-32 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "7543e202-0417-41ab-8956-a8da11aae62a", :events #<ArrayList []>} 
+2012-09-14 13:59:05 qtp742166006-36 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "83cefaa1-4ad8-4410-ac1a-bfa734241ccb", :events #<ArrayList []>} 
+2012-09-14 13:59:10 qtp742166006-37 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "9563ccad-cd7c-43e4-a24b-f80455383be1", :events #<ArrayList []>} 
+2012-09-14 13:59:15 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "4c374b5c-1bb2-43dc-b5d0-06a8887891fd", :events #<ArrayList []>} 
+2012-09-14 13:59:20 qtp742166006-35 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "276fdd1a-a313-45e6-826d-2f460eececa7", :events #<ArrayList []>} 
+2012-09-14 13:59:25 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "6cd01bbd-7798-4013-883a-e88ba02dd803", :events #<ArrayList []>} 
+2012-09-14 13:59:30 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "1a1d5f0c-8de5-4ca0-9ad7-e5bdfd5a073a", :events #<ArrayList []>} 
+2012-09-14 13:59:35 qtp742166006-36 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "6e913a3e-bb56-4a74-87e3-81a08ccc9b83", :events #<ArrayList []>} 
+2012-09-14 13:59:40 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "7758174a-708f-45ed-b31e-e130f7daffd6", :events #<ArrayList []>} 
+2012-09-14 13:59:45 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "09fe0f4a-95ff-4626-bf67-de965d688f4b", :events #<ArrayList []>} 
+2012-09-14 13:59:50 qtp742166006-37 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "bf07bcf7-f2d9-47a0-8994-a795e9a5fdb6", :events #<ArrayList []>} 
+2012-09-14 13:59:56 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "117e8254-5b17-4549-9f84-2def7a3e2b46", :events #<ArrayList []>} 
+2012-09-14 14:00:01 qtp742166006-36 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "78fdc852-9bcc-48a0-b543-2a2ae2f7f6a4", :events #<ArrayList []>} 
+2012-09-14 14:00:06 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "35d9021a-d8c8-4161-86a7-fbc8217205a5", :events #<ArrayList []>} 
+2012-09-14 14:00:11 qtp742166006-32 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "a275b270-1109-428b-b9cb-699d76c9d7a6", :events #<ArrayList []>} 
+2012-09-14 14:00:16 qtp742166006-35 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "0fcb818f-4bb7-4c51-9d17-78f6c156df90", :events #<ArrayList []>} 
+2012-09-14 14:00:21 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "d28afc63-84fa-429b-b2bd-9a05f2b60472", :events #<ArrayList []>} 
+2012-09-14 14:00:26 qtp742166006-37 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "14784977-539d-47cc-9c59-3648208ed043", :events #<ArrayList []>} 
+2012-09-14 14:00:31 qtp742166006-36 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "6910efee-1d3a-4491-b7c8-c1eaa0a6b465", :events #<ArrayList []>} 
+2012-09-14 14:00:36 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "3ccdfd2f-0062-47aa-8710-cabec261ff70", :events #<ArrayList []>} 
+2012-09-14 14:00:41 qtp742166006-32 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "1f86b508-8ead-43d1-af3c-2cec78b88d75", :events #<ArrayList []>} 
+2012-09-14 14:00:46 qtp742166006-36 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "bb12b02b-84be-49ca-8663-a67b44c1cb14", :events #<ArrayList []>} 
+2012-09-14 14:00:51 qtp742166006-34 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "21f39fbf-45f1-4e3b-8782-d563d5332dec", :events #<ArrayList []>} 
+2012-09-14 14:00:56 qtp742166006-35 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "1ffa0f90-a208-40a9-92c2-dc10edeee576", :events #<ArrayList []>} 
+2012-09-14 14:01:01 qtp742166006-37 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "3f670ade-e4f5-4130-9292-3077fab07a62", :events #<ArrayList []>} 
+2012-09-14 14:01:06 qtp742166006-36 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "a98a3666-fb18-4d5d-8c0c-10cab75b08ae", :events #<ArrayList []>} 
+2012-09-14 14:01:11 qtp742166006-32 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "5c607fb5-7bbb-4467-bd6d-3163c1f7cf61", :events #<ArrayList []>} 
+2012-09-14 14:01:16 qtp742166006-35 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "31bb75d0-0b63-41a3-95e2-c9b65354af31", :events #<ArrayList []>} 
+2012-09-14 14:01:21 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "87887ce7-715c-4c36-b404-76254e41ad5b", :events #<ArrayList []>} 
+2012-09-14 14:01:26 qtp742166006-36 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "005f97ad-b99c-4551-8fd1-e7faf193fbc8", :events #<ArrayList []>} 
+2012-09-14 14:01:31 qtp742166006-33 DEBUG c.ingemark.pbxis.service - Events for 148 {:key "0fec1852-17bb-40f6-88b9-b1473545cc45", :events #<ArrayList []>} 
