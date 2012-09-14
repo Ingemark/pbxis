@@ -296,8 +296,8 @@
                          (finally (reset! activating-eventfilter nil)))))))
       (logdebug 'ami-event "AMI event\n" t (dissoc event :event-type :privilege)))
     (let [unique-id (event :uniqueId)]
-      (condp = t
-        "Connect"
+      (condp re-matches t
+        #"Connect"
         (schedule #(let [{:keys [agnt-amiqstatus amiq-cnt]} (full-update-agent-amiq-status)
                          calls-in-progress (calls-in-progress)]
                      (doseq [[agnt upd] agnt-amiqstatus] (enq-event agnt "queueMemberStatus" upd))
@@ -305,49 +305,43 @@
                      (doseq [agnt (keys @agnt-state)]
                        (update-agnt-state agnt assoc-in [:calls] select-keys
                                           (keys (calls-in-progress agnt))))))
-        "Join"
+        #"Join|Leave"
         (broadcast-qcount event)
-        "Leave"
-        (broadcast-qcount event)
-        "Dial"
+        #"Dial"
         (when (= (event :subEvent) "Begin")
           (register-call (event :channel) (event :srcUniqueId) (-> event :dialString digits))
           (register-call (event :destination) (event :destUniqueId)
                          (or (recall (event :srcUniqueId)) (event :callerIdNum))))
-        "Hangup"
+        #"Hangup"
         (register-call (event :channel) unique-id nil)
-        "AgentCalled"
+        #"AgentCalled"
         (register-call (event :agentCalled) unique-id (event :callerIdNum))
-        "AgentComplete"
+        #"AgentComplete"
         (enq-event (event :member) "agentComplete"
                    unique-id (event :talkTime) (event :holdTime)
                    (-?> event :variables (.get "FILEPATH")))
-        "OriginateResponse"
+        #"OriginateResponse"
         (let [action-id (event :actionId)]
           (if (= (event :response) "Success")
             (remember unique-id (recall action-id) DUE-EVENT-WAIT-SECONDS)
             (enq-event (event :exten) "placeCallFailed" action-id)))
-        "ExtensionStatus"
+        #"ExtensionStatus"
         (let [status (int->exten-status (event :status))
               agnt (digits (event :exten))]
           (locking lock
             (update-agnt-state agnt assoc :exten-status status)
             (enq-event agnt "extensionStatus" status)))
-        "QueueMemberStatus"
+        #"QueueMemberStatus"
         (locking lock
           (let [q (event :queue), agnt (digits (event :location)), st (event->member-status event)]
             (when (update-one-agent-amiq-status agnt q st)
               (enq-event agnt "queueMemberStatus" {q st}))))
-        "QueueMemberAdded"
-        (let [q (event :queue), agnt (digits (event :location))
-              st (event->member-status event)]
-          (update-agnt-state assoc-in [:amiq-status q] st)
-          (enq-event agnt "queueMemberStatus" {q st}))
-        "QueueMemberRemoved"
-        (let [q (event :queue), agnt (digits (event :location))]
-          (update-agnt-state agnt assoc-in [:amiq-status q] "loggedoff")
-          (enq-event agnt "queueMemberStatus" {q "loggedoff"}))
-        "QueueMemberPaused"
+        #"QueueMember(Add|Remov)ed" :>>
+        #(let [q (event :queue), agnt (digits (event :location))
+               st (if (= (% 1) "Add") (event->member-status event) "loggedoff")]
+           (update-agnt-state agnt assoc-in [:amiq-status q] st)
+           (enq-event agnt "queueMemberStatus" {q st}))
+        #"QueueMemberPaused"
         (let [q (event :queue), agnt (digits (event :location))
               paused? (event :paused)]
           (schedule #(let [st (if paused? "paused" ((agnt-qs-status agnt [q]) q))]
@@ -374,7 +368,7 @@
                                 :async true})
                        tmout)
       (remember actionid phone (+ tmout DUE-EVENT-WAIT-SECONDS))
-      actionid)))
+      "Placing call to ~{phone}")))
 
 (defn queue-action [type agnt params]
   (send-action (action (<< "Queue~(upcase-first type)")
