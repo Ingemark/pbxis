@@ -17,6 +17,7 @@
                   :exclusions [[org.slf4j/slf4j-api]
                                [log4j/log4j]]]
                  [org.slf4j/log4j-over-slf4j "1.6.4"]]
+  :plugins [[lein-swank "1.4.4"]]
   :repositories [["ingemark-repository" "http://dev.inge-mark.hr/downloads/m2"]
                  ["clojure" "http://build.clojure.org/releases"]
                  ["clojars" "http://clojars.org/repo"]])
