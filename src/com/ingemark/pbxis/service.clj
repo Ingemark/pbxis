@@ -296,9 +296,7 @@
         "Hangup"
         (register-call (event :channel) unique-id nil)
         "AgentCalled"
-        (enq-event (event :agentCalled) "agentCalled" unique-id (event :callerIdNum))
-        "AgentConnect"
-        (enq-event (event :member) "agentConnect" unique-id)
+        (register-call (event :agentCalled) unique-id (event :callerIdNum))
         "AgentComplete"
         (enq-event (event :member) "agentComplete"
                    unique-id (event :talkTime) (event :holdTime)
