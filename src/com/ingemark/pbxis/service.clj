@@ -223,11 +223,10 @@
             (do (replace-rndkey agnt (:rndkey now-state) rndkey)
                 (update-agnt-state agnt assoc :eventq eventq)
                 (-?> now-state :eventq (.add ["requestInvalidated"])))
-            (do
-              (swap! rndkey-agnt assoc rndkey agnt)
-              (swap! agnt-state assoc agnt
-                     {:rndkey rndkey :eventq eventq :exten-status (exten-status agnt)
-                      :calls (calls-in-progress agnt)})))
+            (do (swap! rndkey-agnt assoc rndkey agnt)
+                (swap! agnt-state assoc agnt
+                       {:rndkey rndkey :eventq eventq :exten-status (exten-status agnt)
+                        :calls (calls-in-progress agnt)})))
           (when (not= (set qs) (-?> now-state :amiq-status keys set))
             (update-agnt-state agnt assoc :amiq-status (agnt-qs-status agnt qs)))
           (let [st (@agnt-state agnt)]
