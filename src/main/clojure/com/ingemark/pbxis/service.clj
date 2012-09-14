@@ -113,10 +113,10 @@
 (defn- set-agnt-unsubscriber-schedule [agnt reschedule?]
   (set-schedule agnt-unsubscriber agnt (when reschedule? (unsub-delay))
                 #(do (loginfo "Unsubscribe agent" agnt)
-                     (swap! rndkey-agnt dissoc (@agnt-state :rnd-key))
-                     (swap! agnt-state update-in [agnt] dissoc :rnd-key :eventq))))
+                     (swap! rndkey-agnt dissoc (@agnt-state :rndkey))
+                     (swap! agnt-state update-in [agnt] dissoc :rndkey :eventq))))
 
-(defn- rnd-key [] (-> (java.util.UUID/randomUUID) .toString))
+(defn- rndkey [] (-> (java.util.UUID/randomUUID) .toString))
 
 (def int->exten-status {0 "not_inuse" 1 "inuse" 2 "busy" 4 "unavailable" 8 "ringing" 16 "onhold"})
 
@@ -198,7 +198,7 @@
     (swap! amiq-cnt-agnts update-amiq-cnt-agnts agnt qs)
     (let [now-state (@agnt-state agnt)]
       (if (seq qs)
-        (let [rndkey (rnd-key), eventq (empty-q)]
+        (let [rndkey (rndkey), eventq (empty-q)]
           (set-agnt-unsubscriber-schedule agnt true)
           (reschedule-agnt-gc agnt)
           (if now-state
@@ -224,11 +224,11 @@
           (<< "Agent ~{agnt} unsubscribed"))))))
 
 (defn events-for [agnt-key]
-  (when-let [[agnt q rndkey] (locking lock
+  (when-let [[agnt q newkey] (locking lock
                                (when-let [agnt (@rndkey-agnt agnt-key)]
                                  (when-let [q (>?> @agnt-state agnt :eventq)]
                                    (reschedule-agnt-gc agnt)
-                                   (let [rndkey (rnd-key)]
+                                   (let [rndkey (rndkey)]
                                      (replace-rndkey agnt agnt-key rndkey)
                                      (set-agnt-unsubscriber-schedule agnt false)
                                      [agnt q rndkey]))))]
@@ -239,8 +239,9 @@
           (when-let [head (.poll q (poll-timeout) TimeUnit/SECONDS)]
             (Thread/sleep EVENT-BURST-MILLIS)
             (doto evs (.add head) drain-events)))
-        (spy "Events for" agnt {:key rndkey :events evs}))
-      (finally (set-agnt-unsubscriber-schedule agnt true)))))
+        (spy "Events for" agnt {:key newkey :events evs}))
+      (finally (when (= newkey (@agnt-state agnt :rndkey))
+                 (set-agnt-unsubscriber-schedule agnt true))))))
 
 (defn- broadcast-qcount [ami-event]
   (locking lock
@@ -276,7 +277,7 @@
                           (spy (<< "Received unfiltered event ~{t}, privilege ~(event :privilege).")
                                "Sending" (action "Events" {:eventMask "agent,call"})))
                          (finally (reset! activating-eventfilter nil)))))))
-      (logdebug "AMI event\n" t (dissoc event :event-type :privilege)))
+      (logdebug 'ami-event "AMI event\n" t (dissoc event :event-type :privilege)))
     (let [unique-id (event :uniqueId)]
       (condp = t
         "Connect"
@@ -339,7 +340,7 @@
   (reify ManagerEventListener
     (onManagerEvent [_ event] (handle-ami-event (event-bean event)))))
 
-(defn- actionid [] (<< "pbxis-~(.substring (rnd-key) 0 8)"))
+(defn- actionid [] (<< "pbxis-~(.substring (rndkey) 0 8)"))
 
 (defn originate-call [agnt phone]
   (let [actionid (actionid)
