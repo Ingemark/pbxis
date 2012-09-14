@@ -151,12 +151,16 @@
   (select-keys (into {} (for [[q-st member] (amiq-status nil agnt)]
                           [(:queue q-st) (event->member-status member)])) qs))
 
-(defn- calls-in-progress []
-  (let [agnt-state @agnt-state]
-    (for [{:keys [bridgedChannel bridgedUniqueId callerId]} (send-eventaction (action "Status" {}))
-          :let [agnt (digits bridgedChannel)]
-          :when (and (agnt-state agnt) (seq callerId))]
-      [agnt bridgedUniqueId callerId])))
+(defn- calls-in-progress [& [agnt]]
+  (let [agnt-state @agnt-state
+        r (reduce
+           #(apply assoc-in %1 %2)
+           {}
+           (for [{:keys [bridgedChannel bridgedUniqueId callerId]} (send-eventaction (action "Status" {}))
+                 :let [ag (digits bridgedChannel)]
+                 :when (if agnt (= ag agnt) (agnt-state ag))]
+             [[agnt bridgedUniqueId] callerId]))]
+    (if agnt (r agnt) r)))
 
 (defn- full-update-agent-amiq-status []
   (loginfo "Refreshing Asterisk queue status")
@@ -222,7 +226,8 @@
             (do
               (swap! rndkey-agnt assoc rndkey agnt)
               (swap! agnt-state assoc agnt
-                     {:rndkey rndkey :eventq eventq :exten-status (exten-status agnt)})))
+                     {:rndkey rndkey :eventq eventq :exten-status (exten-status agnt)
+                      :calls (calls-in-progress agnt)})))
           (when (not= (set qs) (-?> now-state :amiq-status keys set))
             (update-agnt-state agnt assoc :amiq-status (agnt-qs-status agnt qs)))
           (let [st (@agnt-state agnt)]
@@ -294,9 +299,13 @@
     (let [unique-id (event :uniqueId)]
       (condp = t
         "Connect"
-        (schedule #(let [{:keys [agnt-amiqstatus amiq-cnt]} (full-update-agent-amiq-status)]
+        (schedule #(let [{:keys [agnt-amiqstatus amiq-cnt]} (full-update-agent-amiq-status)
+                         calls-in-progress (calls-in-progress)]
                      (doseq [[agnt upd] agnt-amiqstatus] (enq-event agnt "queueMemberStatus" upd))
-                     (doseq [[amiq cnt] amiq-cnt] (broadcast-qcount {:queue amiq :count cnt}))))
+                     (doseq [[amiq cnt] amiq-cnt] (broadcast-qcount {:queue amiq :count cnt}))
+                     (doseq [agnt (keys @agnt-state)]
+                       (update-agnt-state agnt assoc-in [:calls] select-keys
+                                          (keys (calls-in-progress agnt))))))
         "Join"
         (broadcast-qcount event)
         "Leave"
