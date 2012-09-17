@@ -58,7 +58,7 @@
                (->> (-> (if timeout
                           (.sendAction @ami-connection a timeout)
                           (.sendAction @ami-connection a))
-                        bean (dissoc :attributes :class))
+                        bean (dissoc :attributes :class :dateReceived))
                     (remove #(nil? (val %)))
                     (into (sorted-map))))]
     (when (= (r :response) "Success") r)))
