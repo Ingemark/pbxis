@@ -280,7 +280,7 @@
     (update-agnt-state agnt #(if phone-num
                                (assoc-in % [:calls id] phone-num)
                                (dissoc-in % [:calls id])))
-    (enq-event agnt "phoneNum" (or phone-num (-?> @agnt-state :calls first val)))))
+    (enq-event agnt "phoneNum" (or phone-num (-?> (@agnt-state agnt) :calls first val)))))
 
 (defn- handle-ami-event [event]
   (let [t (:event-type event)]
