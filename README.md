@@ -1,4 +1,4 @@
-# Asterisk CallCenter integration module
+# Asterisk Call Center Integration Service
 
 ## License
 
