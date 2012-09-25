@@ -14,14 +14,14 @@
            (clojure.core [incubator :refer (-?> -?>> dissoc-in)] [strint :refer (<<)])
            (com.ingemark.clojure [config :as cfg] [logger :refer :all]
                                  [utils :refer (upcase-first invoke)]))
-  (import org.asteriskjava.manager.ManagerEventListener
+  (import (org.asteriskjava.manager ManagerConnectionFactory ManagerEventListener)
           org.asteriskjava.manager.event.ManagerEvent
           (java.util.concurrent LinkedBlockingQueue TimeUnit)
           (clojure.lang Reflector RT)))
 
 (defn- poll-timeout [] (-> (cfg/settings) :poll-timeout-seconds))
 (defn- unsub-delay [] [(inc (quot (poll-timeout) 2)) TimeUnit/SECONDS])
-(defn- agnt-gc-delay [] [(-> (cfg/settings) :agent-gc-delay-minutes) TimeUnit/SECONDS])
+(defn- agnt-gc-delay [] [(-> (cfg/settings) :agent-gc-delay-minutes) TimeUnit/MINUTES])
 (defn- originate-timeout [] (-> (cfg/settings) :originate-timeout-seconds))
 (def EVENT-BURST-MILLIS 100)
 (def DUE-EVENT-WAIT-SECONDS 5)
@@ -80,7 +80,8 @@
    .getEvents
    (mapv event-bean)))
 
-(defn- schedule [task & [delay unit]] (.schedule @scheduler task (or delay 0) (or unit TimeUnit/SECONDS)))
+(defn- schedule [task & [delay unit]]
+  (.schedule @scheduler task (or delay 0) (or unit TimeUnit/SECONDS)))
 
 (defn- remember [k v timeout]
   (swap! memory assoc k v)
@@ -167,7 +168,8 @@
         r (reduce
            #(apply assoc-in %1 %2)
            {}
-           (for [{:keys [bridgedChannel bridgedUniqueId callerId]} (send-eventaction (action "Status" {}))
+           (for [{:keys [bridgedChannel bridgedUniqueId callerId]}
+                 (send-eventaction (action "Status" {}))
                  :let [ag (digits bridgedChannel)]
                  :when (if agnt (= ag agnt) (agnt-state ag))]
              [[agnt bridgedUniqueId] callerId]))]
@@ -360,10 +362,6 @@
                          (enq-event agnt "queueMemberStatus" {q st})))))
         nil))))
 
-(def ami-listener
-  (reify ManagerEventListener
-    (onManagerEvent [_ event] (handle-ami-event (event-bean event)))))
-
 (defn- actionid [] (<< "pbxis-~(.substring (rndkey) 0 8)"))
 
 (defn originate-call [agnt phone]
@@ -384,3 +382,22 @@
 (defn queue-action [type agnt params]
   (send-action (action (<< "Queue~(upcase-first type)")
                        (assoc params :interface (agnt->location agnt)))))
+
+(def ami-listener
+  (reify ManagerEventListener
+    (onManagerEvent [_ event] (handle-ami-event (event-bean event)))))
+
+(defn ami-connect [ip user pass]
+  (locking ami-connection
+    (let [c (reset! ami-connection
+                    (-> (ManagerConnectionFactory. ip user pass)
+                        .createManagerConnection))]
+      (doto c (.addEventListener ami-listener) .login))
+    (reset! scheduler (java.util.concurrent.Executors/newSingleThreadScheduledExecutor))))
+
+(defn ami-disconnect []
+  (locking ami-connection
+    (when-let [c @ami-connection] (reset! ami-connection nil) (.logoff c))
+    (reset! scheduler nil)
+    (doseq [a [amiq-cnt-agnts agnt-state rndkey-agnt agnt-unsubscriber agnt-gc memory]]
+      (reset! a {}))))

@@ -18,8 +18,7 @@
            (ring.middleware [json-params :refer (wrap-json-params)]
                             [file :refer (wrap-file)]
                             [file-info :refer (wrap-file-info)])
-           (com.ingemark.clojure [config :as cfg] [logger :refer :all]))
-  (import org.asteriskjava.manager.ManagerConnectionFactory))
+           (com.ingemark.clojure [config :as cfg] [logger :refer :all])))
 
 (defn ok [f & args] (fn [_] (let [ret (apply f args)]
                               ((if (nil? ret) r/not-found r/response) (json/json-str ret)))))
@@ -44,26 +43,17 @@
 
 (defonce server (atom nil))
 
-(defn ami-connect []
-  (let [c (reset! ps/ami-connection
-                  (-> (apply #(ManagerConnectionFactory. %1 %2 %3)
-                             (mapv ((cfg/settings) :ami) [:ip-address :username :password]))
-                      .createManagerConnection))]
-    (doto c (.addEventListener ps/ami-listener) .login)))
-
 (defn stop []
   (println "Shutting down")
   (when @server (doto @server .stop .join) (reset! server nil))
-  (when @ps/ami-connection (.logoff @ps/ami-connection) (reset! ps/ami-connection nil))
-  (when @ps/scheduler (.shutdown @ps/scheduler) (reset! ps/scheduler nil))
+  (ps/ami-disconnect)
   nil)
 
 (defn main []
   (stop)
   (cfg/initialize nil)
   (logdebug "Settings" (cfg/settings))
-  (reset! ps/scheduler (java.util.concurrent.Executors/newSingleThreadScheduledExecutor))
-  (ami-connect)
+  (apply ps/ami-connect (mapv ((cfg/settings) :ami) [:ip-address :username :password]))
   (reset! server (run-jetty (-> (var app-main)
                                 (wrap-file "static-content")
                                 wrap-file-info)
