@@ -399,10 +399,10 @@
   (reify ManagerEventListener
     (onManagerEvent [_ event] (handle-ami-event (event-bean event)))))
 
-(defn ami-connect [ip user pass & {:as cfg}]
+(defn ami-connect [host username password cfg]
   (locking ami-connection
     (let [c (reset! ami-connection
-                    (-> (ManagerConnectionFactory. ip user pass)
+                    (-> (ManagerConnectionFactory. host username password)
                         .createManagerConnection))]
       (doto c (.addEventListener ami-listener) .login))
     (swap! config merge cfg)
