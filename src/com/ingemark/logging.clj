@@ -58,17 +58,13 @@ argument. If " level " level is not enabled, evaluates only the last argument." 
 string representations of supplied arguments. Does not evaluate the
 arguments unless the " level " level is enabled." add-to-doc))
 
-(defmacro logdebug [& args]
-  (apply log body-for-log "debug" args))
+(defmacro logdebug [& args] (apply log body-for-log "debug" args))
 
-(defmacro loginfo [& args]
-  (apply log body-for-log "info" args))
+(defmacro loginfo [& args] (apply log body-for-log "info" args))
 
-(defmacro logwarn [& args]
-  (apply log body-for-log "warn" args))
+(defmacro logwarn [& args] (apply log body-for-log "warn" args))
 
-(defmacro logerror [& args]
-  (apply log body-for-log "error" args))
+(defmacro logerror [& args] (apply log body-for-log "error" args))
 
 
 (defmacro add-doc {:private true} [name docstring]
