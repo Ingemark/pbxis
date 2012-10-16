@@ -1,6 +1,6 @@
 # Asterisk Call Center Integration Library
 
-The library connects to a call center's Asterisk server and exposes services that are typically needed by an application used by agents while serving the customer calls. This allows easy integration of Asterisk-related services into the wider scope, such as a CRM application.
+The library connects to a call center's Asterisk server and exposes services typically needed by an application that agents use while serving the customer calls. This allows easy integration of Asterisk-related services into the wider scope, such as a CRM application.
 
 ## Feature highlights
 
@@ -14,7 +14,7 @@ The library connects to a call center's Asterisk server and exposes services tha
 
 * robust to connection failures: automatically reconnects and restores the tracked state;
 
-* uses a single AMI connection to Asterisk to cater for all registered agents;
+* uses a single AMI connection to cater for all registered agents;
 
 * keeps the traffic over the AMI connection to a bare minimum:
   * sets up an appropriate event filter on the Asterisk side;
