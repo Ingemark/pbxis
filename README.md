@@ -1,8 +1,10 @@
 # Asterisk Call Center Integration Library
 
-The library connects to an Asterisk server that manages a call center and provides a stream of interesting Asterisk events through an easily accessible API.
+The library connects to an Asterisk server that manages a call center and exposes services that are required to implement an application used by agents serving the phone calls. Allows easy integration of Asterisk services into the wider scope, such as a CRM application.
 
 ## Feature highlights
+
+* provides a stream of interesting Asterisk events through an easily accessible API;
 
 * supports both synchronous (blocking) and asynchronous (callback) mode of operation;
 
@@ -16,7 +18,7 @@ The library connects to an Asterisk server that manages a call center and provid
 
 * uses only a single manager connection to Asterisk to cater for all registered agents;
 
-* keeps the traffic over the AMI connections to the bare minimum:
+* keeps the traffic over the AMI connections to a bare minimum:
   * activates the event filter on the Asterisk side;
   * keeps track of all state through the event stream (doesn't poll the AMI);
   * uses the AMI actions that will generate the necessary minimum of traffic when regenerating state.
