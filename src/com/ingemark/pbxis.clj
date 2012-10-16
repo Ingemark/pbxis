@@ -231,35 +231,40 @@
   (swap! rndkey-agnt #(-> % (dissoc old) (assoc new agnt)))
   (update-agnt-state agnt assoc :rndkey new))
 
-(defn- enq-event [agnt k & vs]
-  (when-let [q (-?> (@agnt-state (digits agnt)) :eventq)]
-    (.add q (spy "enq-event" agnt (vec (cons k vs))))))
+(defn- push-event [agnt k & vs]
+  (let [state (@agnt-state (digits agnt))
+        ev (vec (cons k vs))]
+    (when-let [q (-?> state :eventq)]
+      (.add q (spy "enqueue event" agnt ev)))
+    (when-let [ls (-?> state :listeners seq)]
+      (doseq [l ls] (spy "notify of event" agnt (l ev))))))
 
-(defn config-agnt [agnt qs]
+(defn config-agnt [agnt qs & listeners]
   (logdebug "config-agnt" agnt qs)
   (locking lock
     (swap! amiq-cnt-agnts update-amiq-cnt-agnts agnt qs)
-    (let [now-state (@agnt-state agnt)]
+    (let [now-state (@agnt-state agnt), listeners (seq listeners)]
       (if (seq qs)
-        (let [rndkey (rndkey), eventq (empty-q)]
-          (set-agnt-unsubscriber-schedule agnt true)
-          (reschedule-agnt-gc agnt)
+        (let [rndkey (rndkey), eventq (if listeners nil (empty-q))]
+          (set-agnt-unsubscriber-schedule agnt (not (nil? eventq)))
+          (if eventq (reschedule-agnt-gc agnt) (set-schedule agnt-gc agnt nil nil))
           (if now-state
             (do (replace-rndkey agnt (:rndkey now-state) rndkey)
-                (update-agnt-state agnt assoc :eventq eventq)
+                (update-agnt-state agnt assoc :eventq eventq :listeners listeners)
                 (-?> now-state :eventq (.add ["requestInvalidated"])))
             (do (swap! rndkey-agnt assoc rndkey agnt)
                 (swap! agnt-state assoc agnt
-                       {:rndkey rndkey :eventq eventq :exten-status (exten-status agnt)
+                       {:rndkey rndkey :eventq eventq :listeners listeners
+                        :exten-status (exten-status agnt)
                         :calls (calls-in-progress agnt)})))
           (when (not= (set qs) (-?> now-state :amiq-status keys set))
             (update-agnt-state agnt assoc :amiq-status (agnt-qs-status agnt qs)))
           (let [st (@agnt-state agnt)]
-            (enq-event agnt "extensionStatus" (st :exten-status))
-            (enq-event agnt "queueMemberStatus" (st :amiq-status))
-            (enq-event agnt "phoneNum" (-?> st :calls first val)))
-          (enq-event agnt "queueCount"
-                     (into {} (for [[amiq {:keys [cnt]}] (select-keys @amiq-cnt-agnts qs)] [amiq cnt])))
+            (push-event agnt "extensionStatus" (st :exten-status))
+            (push-event agnt "queueMemberStatus" (st :amiq-status))
+            (push-event agnt "phoneNum" (-?> st :calls first val)))
+          (push-event agnt "queueCount"
+                      (into {} (for [[amiq {:keys [cnt]}] (select-keys @amiq-cnt-agnts qs)] [amiq cnt])))
           rndkey)
         (do
           (swap! rndkey-agnt dissoc (:rndkey now-state))
@@ -291,7 +296,7 @@
     (let [amiq (ami-event :queue), cnt (ami-event :count)]
       (when-let [cnt-agnts (@amiq-cnt-agnts amiq)]
         (swap! amiq-cnt-agnts assoc-in [amiq :cnt] cnt)
-        (doseq [agnt (cnt-agnts :agnts)] (enq-event agnt "queueCount" {amiq cnt}))))))
+        (doseq [agnt (cnt-agnts :agnts)] (push-event agnt "queueCount" {amiq cnt}))))))
 
 (def ^:private ignored-events
   #{"VarSet" "NewState" "NewChannel" "NewExten" "NewCallerId" "NewAccountCode" "ChannelUpdate"
@@ -305,7 +310,7 @@
     (update-agnt-state agnt #(if phone-num
                                (assoc-in % [:calls id] phone-num)
                                (dissoc-in % [:calls id])))
-    (enq-event agnt "phoneNum" (or phone-num (-?> (@agnt-state agnt) :calls first val)))))
+    (push-event agnt "phoneNum" (or phone-num (-?> (@agnt-state agnt) :calls first val)))))
 
 (defn- handle-ami-event [event]
   (let [t (:event-type event)]
@@ -325,7 +330,7 @@
         #"Connect"
         (schedule #(let [{:keys [agnt-amiqstatus amiq-cnt]} (full-update-agent-amiq-status)
                          calls-in-progress (calls-in-progress)]
-                     (doseq [[agnt upd] agnt-amiqstatus] (enq-event agnt "queueMemberStatus" upd))
+                     (doseq [[agnt upd] agnt-amiqstatus] (push-event agnt "queueMemberStatus" upd))
                      (doseq [[amiq cnt] amiq-cnt] (broadcast-qcount {:queue amiq :count cnt}))
                      (doseq [agnt (keys @agnt-state)]
                        (update-agnt-state agnt assoc-in [:calls] select-keys
@@ -342,36 +347,36 @@
         #"AgentCalled"
         (register-call (event :agentCalled) unique-id (event :callerIdNum))
         #"AgentComplete"
-        (enq-event (event :member) "agentComplete"
+        (push-event (event :member) "agentComplete"
                    unique-id (event :talkTime) (event :holdTime)
                    (-?> event :variables (.get "FILEPATH")))
         #"OriginateResponse"
         (let [action-id (event :actionId)]
           (if (= (event :response) "Success")
             (remember unique-id (recall action-id) DUE-EVENT-WAIT-SECONDS)
-            (enq-event (event :exten) "placeCallFailed" action-id)))
+            (push-event (event :exten) "placeCallFailed" action-id)))
         #"ExtensionStatus"
         (let [status (int->exten-status (event :status))
               agnt (digits (event :exten))]
           (locking lock
             (update-agnt-state agnt assoc :exten-status status)
-            (enq-event agnt "extensionStatus" status)))
+            (push-event agnt "extensionStatus" status)))
         #"QueueMemberStatus"
         (locking lock
           (let [q (event :queue), agnt (digits (event :location)), st (event->member-status event)]
             (when (update-one-agent-amiq-status agnt q st)
-              (enq-event agnt "queueMemberStatus" {q st}))))
+              (push-event agnt "queueMemberStatus" {q st}))))
         #"QueueMember(Add|Remov)ed" :>>
         #(let [q (event :queue), agnt (digits (event :location))
                st (if (= (% 1) "Add") (event->member-status event) "loggedoff")]
            (update-agnt-state agnt assoc-in [:amiq-status q] st)
-           (enq-event agnt "queueMemberStatus" {q st}))
+           (push-event agnt "queueMemberStatus" {q st}))
         #"QueueMemberPaused"
         (let [q (event :queue), agnt (digits (event :location))
               paused? (event :paused)]
           (schedule #(let [st (if paused? "paused" ((agnt-qs-status agnt [q]) q))]
                        (when (update-one-agent-amiq-status agnt q st)
-                         (enq-event agnt "queueMemberStatus" {q st})))))
+                         (push-event agnt "queueMemberStatus" {q st})))))
         nil))))
 
 (defn- actionid [] (<< "pbxis-~(.substring (rndkey) 0 8)"))
