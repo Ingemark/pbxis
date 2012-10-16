@@ -19,6 +19,11 @@ While connected, these functions are supported:
 `queue-action`: manage agent status with respect to a particular agent queue.
 
 
+## Examples
+
+The `examples` directory contains a project `http` which implements a simple Ring HTTP server that exposes pbxis functions as a lightweight RESTful service. Events can be collected using long-polling. The server also provides an HTML homepage which uses JavaScript to connect to the event stream and update the page with the current status of a call-center agent.
+
+
 ## License
 
 The software is licensed under the Apache License, Version 2.0.
