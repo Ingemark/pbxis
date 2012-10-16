@@ -401,12 +401,12 @@
 
 (defn ami-connect [host username password cfg]
   (locking ami-connection
+    (swap! config merge cfg)
+    (reset! scheduler (java.util.concurrent.Executors/newSingleThreadScheduledExecutor))
     (let [c (reset! ami-connection
                     (-> (ManagerConnectionFactory. host username password)
                         .createManagerConnection))]
-      (doto c (.addEventListener ami-listener) .login))
-    (swap! config merge cfg)
-    (reset! scheduler (java.util.concurrent.Executors/newSingleThreadScheduledExecutor))))
+      (doto c (.addEventListener ami-listener) .login))))
 
 (defn ami-disconnect []
   (locking ami-connection
