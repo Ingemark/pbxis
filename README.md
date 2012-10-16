@@ -1,18 +1,18 @@
 # Asterisk Call Center Integration Library
 
-The library connects to a call center's Asterisk server and exposes services typically needed by an application that agents use while serving the customer calls. This allows easy integration of Asterisk-related services into the wider scope, such as a CRM application.
+The library connects to a call center's Asterisk server and exposes services typically needed by an application that agents use while serving the customer calls. Allows easy integration of Asterisk-related services into the wider scope, such as a CRM application.
 
 ## Feature highlights
 
-* provides a stream of interesting events through an easily accessible API;
+* connects to Asterisk via the Asterisk Manager Interface (AMI);
 
-* raw AMI events are distilled into a model that minimizes client-side processing;
+* provides a stream of agent-related events through an easily accessible API;
+
+* raw AMI events are digested into a model that minimizes client-side processing;
 
 * supports both synchronous (blocking) and asynchronous (callback-based) reception of events;
 
 * can issue commands to Asterisk, such as originating a call or managing agent status;
-
-* connects to Asterisk via the Asterisk Manager Interface (AMI);
 
 * robust to connection failures: automatically reconnects and restores the tracked state;
 
@@ -40,7 +40,7 @@ While connected, these functions are supported:
 `queue-action`: manage agent status with respect to a particular agent queue.
 
 
-## Events
+## Reported Events
 
 `queueMemberStatus`: status of the agent with respect to a particular agent queue (logged off, logged on, paused).
 
@@ -50,7 +50,7 @@ While connected, these functions are supported:
 
 `phoneNum`: phone number of the remote party currently patched through to agent's extension.
 
-`agentComplete`: when the agent completes serving a call from the agent queue.
+`agentComplete`: contains summary info on the just-completed agent call.
 
 `placeCallFailed`: when an originate-call request failed.
 
