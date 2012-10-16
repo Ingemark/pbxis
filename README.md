@@ -2,6 +2,22 @@
 
 The library connects to an Asterisk server that manages a call center and provides a stream of interesting Asterisk events through an easily accessible API. It supports both synchronous (blocking) and asynchronous (callback) mode of operation. The library additionally supports issuing commands to Asterisk, such as originating a call and managing agent status.
 
+These are the main features of the library:
+
+* connects via the Asterisk Manager Interface (AMI);
+
+* upon initial connect, retrieves all current state that is available;
+
+* automatically reconnects to Asterisk upon connection loss and restores the tracked state;
+
+* uses only a single manager connection to Asterisk to cater for all registered agents;
+
+* keeps the traffic over the AMI connections to the bare minimum:
+  * activates the event filter on the Asterisk side;
+  * keeps track of all state through the event stream (doesn't poll the AMI);
+  * uses the AMI actions that will generate the necessary minimum of traffic when regenerating state.
+
+
 The API is as follows:
 
 `ami-connect`: connect to the asterisk server.
