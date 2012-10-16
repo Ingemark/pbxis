@@ -4,7 +4,9 @@ The library connects to a call center's Asterisk server and exposes services typ
 
 ## Feature highlights
 
-* provides a stream of interesting Asterisk events through an easily accessible API;
+* provides a stream of interesting events through an easily accessible API;
+
+* raw AMI events are distilled into a model that minimizes client-side processing;
 
 * supports both synchronous (blocking) and asynchronous (callback-based) reception of events;
 
