@@ -39,11 +39,10 @@
 
 (defn main []
   (stop)
-  (let [host "192.168.100.101"
-        username "admin"
-        password "protect"
-        cfg {:port 58615
-             :channel-prefix "SCCP/"
+  (let [host       "192.168.100.101"
+        username   "admin"
+        password   "protect"
+        cfg {:channel-prefix "SCCP/"
              :originate-context "default"
              :originate-timeout-seconds 45
              :poll-timeout-seconds 2
@@ -52,4 +51,4 @@
   (reset! server (run-jetty (-> (var app-main)
                                 (wrap-file "static-content")
                                 wrap-file-info)
-                            {:join? false})))
+                            {:port 58615, :join? false})))
