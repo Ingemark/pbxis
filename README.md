@@ -8,7 +8,7 @@ The library connects to an Asterisk server that manages a call center and expose
 
 * supports both synchronous (blocking) and asynchronous (callback) mode of operation;
 
-* supports issuing commands to Asterisk, such as originating a call and managing agent status;
+* can issue commands to Asterisk, such as originating a call and managing agent status;
 
 * connects via the Asterisk Manager Interface (AMI);
 
