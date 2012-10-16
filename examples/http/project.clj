@@ -12,4 +12,5 @@
                  [org.slf4j/slf4j-api "1.6.1"]
                  [ch.qos.logback/logback-classic "1.0.3"]
                  [com.ingemark/pbxis "0.1.0-SNAPSHOT"]]
+  :jvm-opts ["-Dlogback.configurationFile=logback.xml"]
   :plugins [[lein-swank "1.4.4"]])
