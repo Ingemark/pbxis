@@ -45,8 +45,8 @@
         cfg {:channel-prefix "SCCP/"
              :originate-context "default"
              :originate-timeout-seconds 45
-             :poll-timeout-seconds 2
-             :agent-gc-delay-minutes 1}]
+             :poll-timeout-seconds 30
+             :agent-gc-delay-minutes 180}]
     (px/ami-connect host username password cfg))
   (reset! server (run-jetty (-> (var app-main)
                                 (wrap-file "static-content")
