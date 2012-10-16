@@ -19,6 +19,21 @@ While connected, these functions are supported:
 `queue-action`: manage agent status with respect to a particular agent queue.
 
 
+## Events
+
+`queueMemberStatus`: status of the agent with respect to a particular agent queue (logged off, logged on, paused).
+
+`queueCount`: number of callers waiting in an agent queue.
+
+`extensionStatus`: status of the agent's extension (available, in use, busy, ringing, on hold, ...).
+
+`phoneNum`: phone number of the remote party currently patched through to agent's extension.
+
+`agentComplete`: when the agent completes serving a call from the agent queue.
+
+`placeCallFailed`: when an originate-call request failed.
+
+
 ## Examples
 
 The `examples` directory contains a project `http` which implements a simple Ring HTTP server that exposes pbxis functions as a lightweight RESTful service. Events can be collected using long-polling. The server also provides an HTML homepage which uses JavaScript to connect to the event stream and update the page with the current status of a call-center agent.
