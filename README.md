@@ -1,28 +1,25 @@
 # Asterisk Call Center Integration Library
 
-The library connects to an Asterisk server that manages a call center and exposes services that are required to implement an application used by agents serving the phone calls. Allows easy integration of Asterisk services into the wider scope, such as a CRM application.
+The library connects to a call center's Asterisk server and exposes services that are typically needed by an application used by agents while serving the customer calls. This allows easy integration of Asterisk-related services into the wider scope, such as a CRM application.
 
 ## Feature highlights
 
 * provides a stream of interesting Asterisk events through an easily accessible API;
 
-* supports both synchronous (blocking) and asynchronous (callback) mode of operation;
+* supports both synchronous (blocking) and asynchronous (callback-based) reception of events;
 
-* can issue commands to Asterisk, such as originating a call and managing agent status;
+* can issue commands to Asterisk, such as originating a call or managing agent status;
 
-* connects via the Asterisk Manager Interface (AMI);
+* connects to Asterisk via the Asterisk Manager Interface (AMI);
 
-* upon initial connect, retrieves all current state that is available;
+* robust to connection failures: automatically reconnects and restores the tracked state;
 
-* automatically reconnects to Asterisk upon connection loss and restores the tracked state;
+* uses a single AMI connection to Asterisk to cater for all registered agents;
 
-* uses only a single manager connection to Asterisk to cater for all registered agents;
-
-* keeps the traffic over the AMI connections to a bare minimum:
-  * activates the event filter on the Asterisk side;
+* keeps the traffic over the AMI connection to a bare minimum:
+  * sets up an appropriate event filter on the Asterisk side;
   * keeps track of all state through the event stream (doesn't poll the AMI);
-  * uses the AMI actions that will generate the necessary minimum of traffic when regenerating state.
-
+  * tailors AMI actions to generate the necessary minimum of traffic when regenerating state.
 
 ## API overview
 
@@ -58,7 +55,7 @@ While connected, these functions are supported:
 
 ## Examples
 
-The `examples` directory contains a project `http` which implements a simple Ring HTTP server that exposes pbxis functions as a lightweight RESTful service. Events can be collected using long-polling. The server also provides an HTML homepage which uses JavaScript to connect to the event stream and update the page with the current status of a call-center agent.
+The `examples` directory contains a project `http` which implements a simple Ring HTTP server that exposes *pbxis* functions as a lightweight RESTful service. Events can be collected using long polling. The server also provides an HTML homepage which uses JavaScript to connect to the event stream and updates the page with the current status of a call-center agent.
 
 
 ## License
