@@ -1,8 +1,12 @@
 # Asterisk Call Center Integration Library
 
-The library connects to an Asterisk server that manages a call center and provides a stream of interesting Asterisk events through an easily accessible API. It supports both synchronous (blocking) and asynchronous (callback) mode of operation. The library additionally supports issuing commands to Asterisk, such as originating a call and managing agent status.
+The library connects to an Asterisk server that manages a call center and provides a stream of interesting Asterisk events through an easily accessible API.
 
-These are the main features of the library:
+## Feature highlights
+
+* supports both synchronous (blocking) and asynchronous (callback) mode of operation;
+
+* supports issuing commands to Asterisk, such as originating a call and managing agent status;
 
 * connects via the Asterisk Manager Interface (AMI);
 
@@ -18,7 +22,7 @@ These are the main features of the library:
   * uses the AMI actions that will generate the necessary minimum of traffic when regenerating state.
 
 
-The API is as follows:
+## API overview
 
 `ami-connect`: connect to the asterisk server.
 
