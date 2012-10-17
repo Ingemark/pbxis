@@ -354,7 +354,7 @@
         (let [action-id (event :actionId)]
           (if (= (event :response) "Success")
             (remember unique-id (recall action-id) DUE-EVENT-WAIT-SECONDS)
-            (push-event (event :exten) "placeCallFailed" action-id)))
+            (push-event (event :exten) "originateFailed" action-id)))
         #"ExtensionStatus"
         (let [status (int->exten-status (event :status))
               agnt (digits (event :exten))]
