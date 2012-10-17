@@ -262,7 +262,7 @@
           (let [st (@agnt-state agnt)]
             (push-event agnt "extensionStatus" (st :exten-status))
             (push-event agnt "queueMemberStatus" (st :amiq-status))
-            (push-event agnt "phoneNum" (-?> st :calls first val)))
+            (push-event agnt "phoneNumber" (-?> st :calls first val)))
           (push-event agnt "queueCount"
                       (into {} (for [[amiq {:keys [cnt]}] (select-keys @amiq-cnt-agnts qs)] [amiq cnt])))
           rndkey)
@@ -310,7 +310,7 @@
     (update-agnt-state agnt #(if phone-num
                                (assoc-in % [:calls id] phone-num)
                                (dissoc-in % [:calls id])))
-    (push-event agnt "phoneNum" (or phone-num (-?> (@agnt-state agnt) :calls first val)))))
+    (push-event agnt "phoneNumber" (or phone-num (-?> (@agnt-state agnt) :calls first val)))))
 
 (defn- handle-ami-event [event]
   (let [t (:event-type event)]

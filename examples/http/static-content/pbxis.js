@@ -26,7 +26,7 @@ function handle_events(events) {
         case "queueCount":
             $.each(e[1], pbx_queue_count);
             break;
-        case "phoneNum":
+        case "phoneNumber":
             pbx_phone_num(e[1]);
             break;
         case "requestInvalidated": result = false;
