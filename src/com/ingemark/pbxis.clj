@@ -287,7 +287,7 @@
           (when-let [head (.poll q (poll-timeout) TimeUnit/SECONDS)]
             (Thread/sleep EVENT-BURST-MILLIS)
             (doto evs (.add head) drain-events)))
-        (spy "Events for" agnt {:key newkey :events evs}))
+        (spy "Events for" agnt {:key newkey :events (vec evs)}))
       (finally (when (= newkey (>?> @agnt-state agnt :rndkey))
                  (set-agnt-unsubscriber-schedule agnt true))))))
 
