@@ -239,8 +239,26 @@
     (when-let [ls (-?> state :listeners seq)]
       (doseq [l ls] (spy "notify of event" agnt (l ev))))))
 
-(defn config-agnt [agnt qs & listeners]
-  (logdebug "config-agnt" agnt qs)
+(defn config-agnt
+  "Subscribes an agent to the event stream. If the agent is already
+subscribed, reconfigures the subscription.
+
+agnt: agent's phone extension number.
+qs: a collection of agent queue names. If empty or nil, the agent is
+    unsubscribed.
+listeners: optional callback functions that will be called with the
+           events as they arrive.
+
+Returns the key (string) to be passed to events-for.
+If any listeners are supplied, returns nil.
+If unsubscribing, returns a string message \"Agent {agent} unsubscribed\".
+
+When subscribing an agent, this function immediately generates all
+events necessary to establish the initial state. This means that the
+supplied listener functions will be called even before the call to
+this function returns."
+  [agnt qs & listeners]
+  (loginfo "config-agnt" agnt qs)
   (locking lock
     (swap! amiq-cnt-agnts update-amiq-cnt-agnts agnt qs)
     (let [now-state (@agnt-state agnt), listeners (seq listeners)]
@@ -271,7 +289,22 @@
           (swap! agnt-state dissoc agnt)
           (<< "Agent ~{agnt} unsubscribed"))))))
 
-(defn events-for [agnt-key]
+(defn events-for
+  "Synchronously receives events associated with a key. The function
+blocks until an event appears or the configured poll-timeout
+elapses. The supplied key is immediately invalidated and the next call
+must use the key returned by the current call.
+
+Returns a map {:key \"new-key\" :events [events]}.
+
+If the events vector contains a \"requestInvalidated\" event, that means
+that config-agnt was called concurrently for the agent associated
+with the current call to this function. In that case the key returned
+by this call is already invalid.
+
+The key is also automatically invalidated if this function is not called
+again after it returns. The timeout for this is half the poll-timeout."
+  [agnt-key]
   (when-let [[agnt q newkey] (locking lock
                                (when-let [agnt (@rndkey-agnt agnt-key)]
                                  (when-let [q (>?> @agnt-state agnt :eventq)]
@@ -381,7 +414,17 @@
 
 (defn- actionid [] (<< "pbxis-~(.substring (rndkey) 0 8)"))
 
-(defn originate-call [agnt phone]
+(defn originate-call
+  "Issues a request to originate a call to the supplied phone number and
+patch it through to the supplied agent's extension.
+
+Returns the ID (string) of the request. The function returns immediately
+and doesn't wait for the call to be established. In the case of failure,
+an event will be received by the client referring to this ID.
+
+In the case of a successful call, only a an phoneNumber event will be
+received."
+  [agnt phone]
   (let [actionid (actionid)
         context (@config :originate-context)
         tmout (originate-timeout)]
@@ -394,9 +437,24 @@
                                 :async true})
                        tmout)
       (remember actionid phone (+ tmout DUE-EVENT-WAIT-SECONDS))
-      "Placing call to ~{phone}")))
+      actionid)))
 
-(defn queue-action [type agnt params]
+(defn queue-action
+"Executes an action against an agent's queue. This is a thin wrapper
+  around an actual AMI QueueXxxAction.
+
+type: action type, one of #{\"add\", \"pause\", \"remove\"}.
+agnt: the agent on whose behalf the action is executed.
+params: a map of action parameters:
+   \"queue\": the queue name.
+   \"memberName\": full name of the agent, to be associated with this
+                   agent in this queue.
+   \"paused\": the requested new paused-state of the agent.
+
+The \"queue\" param applies to all actions; the \"paused\" param
+applies to all except \"remove\", and \"memberName\" applies only to
+\"add\"."
+[type agnt params]
   (send-action (action (<< "Queue~(upcase-first type)")
                        (assoc params :interface (agnt->location agnt)))))
 
@@ -404,7 +462,33 @@
   (reify ManagerEventListener
     (onManagerEvent [_ event] (handle-ami-event (event-bean event)))))
 
-(defn ami-connect [host username password cfg]
+(defn ami-connect
+  "Connects to the AMI back-end and performs all other initialization
+tasks.
+
+host: host name or IP address of the Asterisk server.
+username, password: AMI username/password
+cfg: a map of configuration parameters---
+
+     :channel-prefix -- string to prepend to agent's extension
+       in order to form the agent \"location\" as known to
+       Asterisk. This is typically \"SCCP/\", \"SIT/\" or similar.
+
+     :originate-context -- dialplan context used for call origination.
+       Typically the default context is called \"default\".
+
+     :originate-timeout-seconds -- time to wait for the called party to
+       answer the phone.
+
+     :poll-timeout-seconds -- timeout value for the events-for function.
+
+     :agent-gc-delay-minutes -- grace period within which to keep
+       tracking the state of an agent after he was automatically
+       unsubscribed due to client inactivity (events-for not getting
+       called within half of poll-timeout).  Some state cannot be
+       regenerated later, such as the phone number of the party called
+       by originate-call."
+  [host username password cfg]
   (locking ami-connection
     (swap! config merge cfg)
     (reset! scheduler (java.util.concurrent.Executors/newSingleThreadScheduledExecutor))
@@ -413,7 +497,9 @@
                         .createManagerConnection))]
       (doto c (.addEventListener ami-listener) .login))))
 
-(defn ami-disconnect []
+(defn ami-disconnect
+"Disconnects from the AMI and releases all resources."
+  []
   (locking ami-connection
     (when-let [c @ami-connection] (reset! ami-connection nil) (.logoff c))
     (reset! scheduler nil)
