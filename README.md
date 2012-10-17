@@ -2,6 +2,15 @@
 
 The library connects to a call center's Asterisk server and exposes services typically needed by an application that agents use while serving the customer calls. Allows easy integration of Asterisk-related services into the wider scope, such as a CRM application.
 
+The library is designed with the following scenario in mind:
+
+* there is a web application that agents use in their workplace;
+* *pbxis* is itself exposed as a web service;
+* the web application subscribes an agent to the *pbxis* service and passes its event-stream URL to the agent's browser;
+* the browser contacts *pbxis* directly to receive the event stream.
+
+Implementations can choose by which mechanism the client will receive the events. In addition to the natural asynchronous model, the library has additional support specifically geared towards an easy implementation of long polling.
+
 ## Feature highlights
 
 * connects to Asterisk via the Asterisk Manager Interface (AMI);
@@ -44,9 +53,9 @@ While connected, these functions are supported:
 
 Events, as returned to `events-for` and passed to callbacks, are simple vectors where the first member determines event type and the rest are event details.
 
-`queueMemberStatus`: status of the agent with respect to a particular agent queue. Detail: a map `queueName->memberStatus`, where `memberStatus` is one of `#{"unknown", "not_inuse", "inuse", "busy", "unavailable", "ringing", "ringinuse", "onhold"}`. There is one entry for each queue that the agent was registered for.
+`queueMemberStatus`: status of the agent with respect to a particular agent queue. Detail: a map `queueName->memberStatus`, where `memberStatus` is one of `#{"unknown", "not_inuse", "inuse", "busy", "unavailable", "ringing", "ringinuse", "onhold"}`. Only updated statuses are sent (the map doesn't usually contain the status for all subscribed queues).
 
-`queueCount`: number of callers waiting in agent queues. Detail: a map `queueName->queueCount`. Only updated counts are sent (the map doesn't usually contain the counts for all registered queues).
+`queueCount`: number of callers waiting in agent queues. Detail: a map `queueName->queueCount`. Only updated counts are sent (the map doesn't usually contain the counts for all subscribed queues).
 
 `extensionStatus`: status of the agent's extension. Detail: a string, one of `#{"not_inuse", "inuse", "busy", "unavailable", "ringing", "onhold"}`.
 
