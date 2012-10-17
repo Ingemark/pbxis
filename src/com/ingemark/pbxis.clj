@@ -245,14 +245,14 @@
     (swap! amiq-cnt-agnts update-amiq-cnt-agnts agnt qs)
     (let [now-state (@agnt-state agnt), listeners (seq listeners)]
       (if (seq qs)
-        (let [rndkey (rndkey), eventq (if listeners nil (empty-q))]
+        (let [rndkey (if listeners nil (rndkey)), eventq (if listeners nil (empty-q))]
           (set-agnt-unsubscriber-schedule agnt (not (nil? eventq)))
           (if eventq (reschedule-agnt-gc agnt) (set-schedule agnt-gc agnt nil nil))
           (if now-state
             (do (replace-rndkey agnt (:rndkey now-state) rndkey)
                 (update-agnt-state agnt assoc :eventq eventq :listeners listeners)
                 (-?> now-state :eventq (.add ["requestInvalidated"])))
-            (do (swap! rndkey-agnt assoc rndkey agnt)
+            (do (when rndkey (swap! rndkey-agnt assoc rndkey agnt))
                 (swap! agnt-state assoc agnt
                        {:rndkey rndkey :eventq eventq :listeners listeners
                         :exten-status (exten-status agnt)
