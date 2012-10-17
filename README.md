@@ -44,13 +44,13 @@ While connected, these functions are supported:
 
 Events, as returned to `events-for` and passed to callbacks, are simple vectors where the first member determines event type and the rest are event details.
 
-`queueMemberStatus`: status of the agent with respect to a particular agent queue. Detail: a map `queueName->memberStatus`, where `memberStatus` is one of #{"unknown", "not_inuse", "inuse", "busy", "unavailable", "ringing", "ringinuse", "onhold"}. There is one entry for each queue that the agent was registered for.
+`queueMemberStatus`: status of the agent with respect to a particular agent queue. Detail: a map `queueName->memberStatus`, where `memberStatus` is one of `#{"unknown", "not_inuse", "inuse", "busy", "unavailable", "ringing", "ringinuse", "onhold"}`. There is one entry for each queue that the agent was registered for.
 
-`queueCount`: number of callers waiting in agent queues. Detail: a map `queueName->queueCount`. Only counts than were updated are sent (the map doesn't necessarily contain the count for all registered queues).
+`queueCount`: number of callers waiting in agent queues. Detail: a map `queueName->queueCount`. Only updated counts are sent (the map doesn't usually contain the counts for all registered queues).
 
-`extensionStatus`: status of the agent's extension. Detail: a string, one of #{"not_inuse", "inuse", "busy", "unavailable", "ringing", "onhold"}.
+`extensionStatus`: status of the agent's extension. Detail: a string, one of `#{"not_inuse", "inuse", "busy", "unavailable", "ringing", "onhold"}`.
 
-`phoneNum`: phone number of the remote party currently patched through to agent's extension. Detail: a string, the phone number.
+`phoneNumber`: phone number of the remote party currently patched through to agent's extension. Detail: the phone number (string).
 
 `agentComplete`: contains summary info on the just-completed agent call. Details: unique ID of the call (string), talk time in seconds (integer), hold time in seconds (integer), path to the recorded call on the server (string).
 
