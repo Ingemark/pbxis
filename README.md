@@ -8,7 +8,7 @@ The library connects to a call center's Asterisk server and exposes services typ
 
 * provides a stream of agent-related events through an easily accessible API;
 
-* raw AMI events are digested into a model that minimizes client-side processing;
+* raw AMI events are collated and digested into a model that minimizes client-side processing;
 
 * supports both synchronous (blocking) and asynchronous (callback-based) reception of events;
 
@@ -31,9 +31,9 @@ The library connects to a call center's Asterisk server and exposes services typ
 
 While connected, these functions are supported:
 
-`config-agnt`: register a call-center agent with the names of Asterisk queues the agent is a member of. This function accepts an optional list of event listener functions.
+`config-agnt`: register a call-center agent with the names of Asterisk queues the agent is interested in. This function accepts an optional list of event listener functions.
 
-`events-for`: synchronously gather events for a registered agent. The function blocks until an event occurs within the timeout period.
+`events-for`: synchronously gather events for a registered agent. The function blocks until an event occurs within the timeout period. If the agent was configured (by calling `config-agnt`) with at least one event listener, this function will not supply any events.
 
 `originate-call`: place a phone call to the supplied phone number and patch it through to agent's extension.
 
@@ -42,17 +42,19 @@ While connected, these functions are supported:
 
 ## Reported Events
 
-`queueMemberStatus`: status of the agent with respect to a particular agent queue (logged off, logged on, paused).
+Events, as returned to `events-for` and passed to callbacks, are simple vectors where the first member determines event type and the rest are event details.
 
-`queueCount`: number of callers waiting in an agent queue.
+`queueMemberStatus`: status of the agent with respect to a particular agent queue. Detail: a map `queueName->memberStatus`, where `memberStatus` is one of #{"unknown", "not_inuse", "inuse", "busy", "unavailable", "ringing", "ringinuse", "onhold"}. There is one entry for each queue that the agent was registered for.
 
-`extensionStatus`: status of the agent's extension (available, in use, busy, ringing, on hold, ...).
+`queueCount`: number of callers waiting in agent queues. Detail: a map `queueName->queueCount`. Only counts than were updated are sent (the map doesn't necessarily contain the count for all registered queues).
 
-`phoneNum`: phone number of the remote party currently patched through to agent's extension.
+`extensionStatus`: status of the agent's extension. Detail: a string, one of #{"not_inuse", "inuse", "busy", "unavailable", "ringing", "onhold"}.
 
-`agentComplete`: contains summary info on the just-completed agent call.
+`phoneNum`: phone number of the remote party currently patched through to agent's extension. Detail: a string, the phone number.
 
-`placeCallFailed`: when an originate-call request failed.
+`agentComplete`: contains summary info on the just-completed agent call. Details: unique ID of the call (string), talk time in seconds (integer), hold time in seconds (integer), path to the recorded call on the server (string).
+
+`originateFailed`: when an `originate-call` request failed. Detail: ID of the request, as previously returned by `originate-call`.
 
 
 ## Examples
