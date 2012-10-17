@@ -21,8 +21,8 @@
 (defonce config (atom {:channel-prefix "SCCP/"
                        :originate-context "default"
                        :originate-timeout-seconds 45
-                       :poll-timeout-seconds 5
-                       :agent-gc-delay-minutes 1}))
+                       :poll-timeout-seconds 30
+                       :agent-gc-delay-minutes 60}))
 
 (defn- poll-timeout [] (@config :poll-timeout-seconds))
 (defn- unsub-delay [] [(inc (quot (poll-timeout) 2)) TimeUnit/SECONDS])
