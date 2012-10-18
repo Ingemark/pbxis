@@ -2,7 +2,7 @@
 
 The library connects to a call center's Asterisk server and exposes services typically needed by an application that agents use while serving the customer calls. Allows easy integration of Asterisk-related services into the wider scope, such as a CRM application.
 
-The library is designed with the following scenario in mind:
+The library is designed with the following scenario in mind (but in no way limited to it):
 
 * there is a web application that agents use in their workplace;
 * *pbxis* is itself exposed as a web service;
