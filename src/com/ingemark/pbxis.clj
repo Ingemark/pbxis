@@ -22,10 +22,11 @@
                        :originate-context "default"
                        :originate-timeout-seconds 45
                        :poll-timeout-seconds 30
+                       :unsub-delay-seconds 15
                        :agent-gc-delay-minutes 60}))
 
 (defn- poll-timeout [] (@config :poll-timeout-seconds))
-(defn- unsub-delay [] [(inc (quot (poll-timeout) 2)) TimeUnit/SECONDS])
+(defn- unsub-delay [] [@config :unsub-delay-seconds TimeUnit/SECONDS])
 (defn- agnt-gc-delay [] [(@config :agent-gc-delay-minutes) TimeUnit/MINUTES])
 (defn- originate-timeout [] (@config :originate-timeout-seconds))
 (def EVENT-BURST-MILLIS 100)
@@ -233,35 +234,42 @@
   (swap! ticket-agnt #(-> % (dissoc old) (assoc new agnt)))
   (update-agnt-state agnt assoc :ticket new))
 
+(defn deregister-listener
+  "Deregisters the listener (if any) from the supplied agent's event
+stream. Agent's event queue will continue to accumulate events for
+another unsub-delay-seconds and if another event consumer is attached
+within this period, no events will be lost."
+  [agnt]
+  (update-agnt-state agnt dissoc :listener)
+  (reschedule-agnt-gc agnt)
+  (set-agnt-unsubscriber-schedule agnt true))
+
 (defn- drain-events-to-listener [agnt]
-  (let [t (Object.)
-        swapped-in (update-agnt-state agnt update-in [:draining] (when-not % t))]
-    (when (= swapped-in t)
-      (.execute
-       @thread-pool
-       (fn []
-         (let [{:keys [eventq listener]} (@agnt-state agnt)]
-           (if [(and eventq listener)]
-             (let [evs (java.util.ArrayList.)]
-               (locking eventq
-                 (.drainTo eventq evs)
-                 (when-not (seq evs)
-                   (update-agnt-state agnt dissoc :draining)))
-               (try
-                 (doseq [ev evs] (listener ev))
-                 (catch Throwable t
-                   (logerror "Failure in event listener" t)
-                   (update-agnt-state agnt dissoc :listener)
-                   (reschedule-agnt-gc agnt)
-                   (set-agnt-unsubscriber-schedule agnt true))
-                 (finally (when (seq evs) recur))))
-             (update-agnt-state agnt dissoc :draining))))))))
+  (when (update-agnt-state agnt update-in [:draining] (when-not % true))
+    (.execute
+     @thread-pool
+     (fn []
+       (let [{:keys [eventq listener]} (@agnt-state agnt)]
+         (if [(and eventq listener)]
+           (let [evs (java.util.ArrayList.)]
+             (locking eventq
+               (.drainTo eventq evs)
+               (when-not (seq evs)
+                 (update-agnt-state agnt dissoc :draining)))
+             (try
+               (doseq [ev evs] (listener ev))
+               (catch Throwable t
+                 (logerror "Failure in event listener" t)
+                 (deregister-listener agnt))
+               (finally (when (seq evs) recur))))
+           (update-agnt-state agnt dissoc :draining)))))))
 
 (defn- push-event [agnt k & vs]
   (let [agnt (digits agnt)]
-    (when-let [q (-?> agnt @agnt-state :eventq)]
-      (locking q (.add q (spy "enqueue event" agnt (vec (cons k vs)))))
-      (drain-events-to-listener agnt))))
+    (when-let [{:keys [eventq listener]} (@agnt-state agnt)]
+      (when eventq
+        (locking eventq (.add eventq (spy "enqueue event" agnt (vec (cons k vs)))))
+        (when listener (drain-events-to-listener agnt))))))
 
 (defn config-agnt
   "Subscribes an agent to the event stream. If the agent is already
@@ -311,6 +319,9 @@ blocks until an event appears or the configured poll-timeout
 elapses. The supplied ticket is immediately invalidated and the next call
 must use the ticket returned by the current call.
 
+If this function is called while a listener is registered to the same
+event stream, it will immediately return nil.
+
 Returns a map {:ticket \"new-ticket\" :events [events]}.
 
 If the events vector contains a \"requestInvalidated\" event, that means
@@ -319,16 +330,17 @@ with the current call to this function. In that case the ticket returned
 by this call is already invalid.
 
 The ticket is also automatically invalidated if this function is not called
-again after it returns. The timeout for this is half the poll-timeout."
+again (within unsub-delay-seconds) after it returns."
   [ticket]
   (when-let [[agnt q newtkt] (locking lock
                                (when-let [agnt (@ticket-agnt ticket)]
-                                 (when-let [q (>?> @agnt-state agnt :eventq)]
-                                   (reschedule-agnt-gc agnt)
-                                   (let [newtkt (ticket)]
-                                     (replace-ticket agnt ticket newtkt)
-                                     (set-agnt-unsubscriber-schedule agnt false)
-                                     [agnt q newtkt]))))]
+                                 (let [{:keys [eventq listener]} (@agnt-state agnt)]
+                                   (when (and eventq (not listener))
+                                     (reschedule-agnt-gc agnt)
+                                     (let [newtkt (ticket)]
+                                       (replace-ticket agnt ticket newtkt)
+                                       (set-agnt-unsubscriber-schedule agnt false)
+                                       [agnt eventq newtkt])))))]
     (try
       (let [drain-events #(.drainTo q %)
             evs (doto (java.util.ArrayList.) drain-events)]
@@ -512,6 +524,9 @@ cfg: a map of configuration parameters---
        answer the phone.
 
      :poll-timeout-seconds -- timeout value for the events-for function.
+
+     :unsub-delay-seconds -- how long to keep accumulating events into
+       the event queue while no consumers are attached.
 
      :agent-gc-delay-minutes -- grace period within which to keep
        tracking the state of an agent after he was automatically
