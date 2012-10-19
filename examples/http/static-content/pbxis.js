@@ -5,9 +5,9 @@ function pbx_queue_count(queue, count) {}
 function pbx_phone_num(num) {}
 
 
-function pbx_long_poll(key) {
-    $.getJSON("/agent/"+key, function(r) {
-        if (handle_events(r.events)) pbx_long_poll(r.key);
+function pbx_long_poll(ticket) {
+    $.getJSON("/agent/"+ticket, function(r) {
+        if (handle_events(r.events)) pbx_long_poll(r.ticket);
         else pbx_connection(false);
     }).error(function() {pbx_connection(false)});
 }
@@ -43,9 +43,9 @@ function pbx_start(agent, queues) {
             data: JSON.stringify({queues: queues}),
             contentType: "application/json; charset=utf-8",
             dataType: "json",
-            success: function(r) {
+            success: function(ticket) {
                 pbx_connection(true);
-                pbx_long_poll(r);
+                pbx_long_poll(ticket);
             }
         }
     )
