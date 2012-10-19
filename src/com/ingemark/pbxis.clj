@@ -26,7 +26,7 @@
                        :agent-gc-delay-minutes 60}))
 
 (defn- poll-timeout [] (@config :poll-timeout-seconds))
-(defn- unsub-delay [] [@config :unsub-delay-seconds TimeUnit/SECONDS])
+(defn- unsub-delay [] [(@config :unsub-delay-seconds) TimeUnit/SECONDS])
 (defn- agnt-gc-delay [] [(@config :agent-gc-delay-minutes) TimeUnit/MINUTES])
 (defn- originate-timeout [] (@config :originate-timeout-seconds))
 (def EVENT-BURST-MILLIS 100)
@@ -147,7 +147,7 @@
                    (loginfo "Unsubscribe agent" agnt)
                    (when-let [now-state (@agnt-state agnt)]
                      (swap! ticket-agnt dissoc (now-state :ticket))
-                     (update-agnt-state agnt dissoc :ticket :eventq :listener)))))
+                     (update-agnt-state agnt dissoc :ticket :eventq :sink)))))
 
 (defn- ticket [] (-> (java.util.UUID/randomUUID) .toString))
 
@@ -234,42 +234,44 @@
   (swap! ticket-agnt #(-> % (dissoc old) (assoc new agnt)))
   (update-agnt-state agnt assoc :ticket new))
 
-(defn deregister-listener
-  "Deregisters the listener (if any) from the supplied agent's event
-stream. Agent's event queue will continue to accumulate events for
+(defn deregister-sink
+  "Deregisters the sink (if any) from the supplied agent's event
+queue. The queue will continue to accumulate events for
 another unsub-delay-seconds and if another event consumer is attached
 within this period, no events will be lost."
   [agnt]
-  (update-agnt-state agnt dissoc :listener)
-  (reschedule-agnt-gc agnt)
-  (set-agnt-unsubscriber-schedule agnt true))
+  (locking lock
+    (update-agnt-state agnt dissoc :sink)
+    (reschedule-agnt-gc agnt)
+    (set-agnt-unsubscriber-schedule agnt true)))
 
-(defn- drain-events-to-listener [agnt]
-  (when (update-agnt-state agnt update-in [:draining] (when-not % true))
+(defn- drain-events-to-sink [agnt]
+  (when (update-agnt-state agnt update-in [:draining] #(when-not % true))
     (.execute
      @thread-pool
      (fn []
-       (let [{:keys [eventq listener]} (@agnt-state agnt)]
-         (if [(and eventq listener)]
+       (let [{:keys [eventq sink]} (@agnt-state agnt)]
+         (if [(and eventq sink)]
            (let [evs (java.util.ArrayList.)]
              (locking eventq
                (.drainTo eventq evs)
                (when-not (seq evs)
                  (update-agnt-state agnt dissoc :draining)))
              (try
-               (doseq [ev evs] (listener ev))
+               (doseq [ev evs] (sink ev))
                (catch Throwable t
-                 (logerror "Failure in event listener" t)
-                 (deregister-listener agnt))
-               (finally (when (seq evs) recur))))
+                 (logerror "Failure in event sink" t)
+                 (deregister-sink agnt)))
+             (when (seq evs) (recur)))
            (update-agnt-state agnt dissoc :draining)))))))
 
 (defn- push-event [agnt k & vs]
   (let [agnt (digits agnt)]
-    (when-let [{:keys [eventq listener]} (@agnt-state agnt)]
+    (when-let [{:keys [eventq sink]} (@agnt-state agnt)]
       (when eventq
-        (locking eventq (.add eventq (spy "enqueue event" agnt (vec (cons k vs)))))
-        (when listener (drain-events-to-listener agnt))))))
+        (locking eventq
+          (.add eventq (spy "enqueue event" agnt (vec (cons k vs))))
+          (when sink (drain-events-to-sink agnt)))))))
 
 (defn config-agnt
   "Subscribes an agent to the event stream. If the agent is already
@@ -279,7 +281,9 @@ agnt: agent's phone extension number.
 qs: a collection of agent queue names. If empty or nil, the agent is
     unsubscribed.
 
-Returns the ticket (string) to be passed to events-for or register-listener.
+Returns the ticket (string) to be passed to events-for or register-sink. The
+ticket will be valid for unsub-delay-seconds.
+
 If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
   [agnt qs]
   (loginfo "config-agnt" agnt qs)
@@ -314,12 +318,15 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
           (<< "Agent ~{agnt} unsubscribed"))))))
 
 (defn events-for
-  "Synchronously receives events associated with a ticket. The function
-blocks until an event appears or the configured poll-timeout
-elapses. The supplied ticket is immediately invalidated and the next call
-must use the ticket returned by the current call.
+  "Synchronously receives events associated with a ticket. The
+function blocks until an event appears or the configured poll-timeout
+elapses. The supplied ticket is immediately invalidated and the next
+call must use the ticket returned by the current call. The ticket is
+valid for unsub-delay-seconds. If the next call arrives within the
+ticket's validity period, it will receive all events following the
+last event received by the current call.
 
-If this function is called while a listener is registered to the same
+If this function is called while a sink is registered to the same
 event stream, it will immediately return nil.
 
 Returns a map {:ticket \"new-ticket\" :events [events]}.
@@ -327,18 +334,15 @@ Returns a map {:ticket \"new-ticket\" :events [events]}.
 If the events vector contains a \"requestInvalidated\" event, that means
 that config-agnt was called concurrently for the agent associated
 with the current call to this function. In that case the ticket returned
-by this call is already invalid.
-
-The ticket is also automatically invalidated if this function is not called
-again (within unsub-delay-seconds) after it returns."
-  [ticket]
+by this call is already invalid."
+  [tkt]
   (when-let [[agnt q newtkt] (locking lock
-                               (when-let [agnt (@ticket-agnt ticket)]
-                                 (let [{:keys [eventq listener]} (@agnt-state agnt)]
-                                   (when (and eventq (not listener))
+                               (when-let [agnt (@ticket-agnt tkt)]
+                                 (let [{:keys [eventq sink]} (@agnt-state agnt)]
+                                   (when (and eventq (not sink))
                                      (reschedule-agnt-gc agnt)
                                      (let [newtkt (ticket)]
-                                       (replace-ticket agnt ticket newtkt)
+                                       (replace-ticket agnt tkt newtkt)
                                        (set-agnt-unsubscriber-schedule agnt false)
                                        [agnt eventq newtkt])))))]
     (try
@@ -352,19 +356,29 @@ again (within unsub-delay-seconds) after it returns."
       (finally (when (= newtkt (>?> @agnt-state agnt :ticket))
                  (set-agnt-unsubscriber-schedule agnt true))))))
 
-(defn register-listener
-  "Registers a listener to an agent's events. Requires a ticket.
-Returns a new ticket (the supplied one is invalidated)."
-  [ticket listener]
+(defn register-sink
+  "Registers a sink (a unary function) to an agent's events. Requires
+a ticket. Returns a new ticket and also places it into the event
+stream as a newTicket event. The supplied ticket is invalidated.
+
+If the sink function throws an exception, it is automatically
+deregistered and the unsubscribe countdown starts. If a new sink
+is registered within unsub-delay-seconds, it will receive all the
+events following the one whose handling threw the exception.
+
+If this function is called while a call to events-for is in progress
+for the same agent, the resulting behavior is unspecified."
+  [tkt sink]
   (locking lock
-    (when-let [agnt (@ticket-agnt ticket)]
+    (when-let [agnt (@ticket-agnt tkt)]
       (when (>?> @agnt-state agnt :eventq)
-        (update-agnt-state agnt assoc :listener listener)
+        (update-agnt-state agnt assoc :sink sink)
         (set-schedule agnt-gc agnt nil nil)
         (let [newtkt (ticket)]
-          (replace-ticket agnt ticket newtkt)
+          (replace-ticket agnt tkt newtkt)
           (set-agnt-unsubscriber-schedule agnt false)
-          (drain-events-to-listener agnt)
+          (push-event agnt "newTicket" newtkt)
+          (drain-events-to-sink agnt)
           newtkt)))))
 
 (defn- broadcast-qcount [ami-event]
@@ -538,7 +552,7 @@ cfg: a map of configuration parameters---
   (locking ami-connection
     (swap! config merge cfg)
     (reset! scheduler (Executors/newSingleThreadScheduledExecutor))
-    (reset! thread-pool (Executors/newCachedThreadPoolExecutor))
+    (reset! thread-pool (Executors/newCachedThreadPool))
     (let [c (reset! ami-connection
                     (-> (ManagerConnectionFactory. host username password)
                         .createManagerConnection))]
