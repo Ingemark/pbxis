@@ -9,4 +9,5 @@
                  [org.slf4j/log4j-over-slf4j "1.6.4"]
                  [ch.qos.logback/logback-classic "1.0.3"]
                  [org.asteriskjava/asterisk-java "1.0.0.M3" :exclusions [[log4j/log4j]]]]
+  :jvm-opts ["-Dlogback.configurationFile=logback.xml"]
   :plugins [[lein-swank "1.4.4"]])
