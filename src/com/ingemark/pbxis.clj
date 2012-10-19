@@ -243,7 +243,8 @@ within this period, no events will be lost."
   (locking lock
     (update-agnt-state agnt dissoc :sink)
     (reschedule-agnt-gc agnt)
-    (set-agnt-unsubscriber-schedule agnt true)))
+    (set-agnt-unsubscriber-schedule agnt true))
+  (<< "Deregistered event sink for agent ~{agnt}"))
 
 (defn- drain-events-to-sink [agnt]
   (when (update-agnt-state agnt update-in [:draining] #(when-not % true))
@@ -291,27 +292,28 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
     (swap! amiq-cnt-agnts update-amiq-cnt-agnts agnt qs)
     (let [now-state (@agnt-state agnt)]
       (if (seq qs)
-        (let [ticket (ticket), eventq (empty-q)]
-          (set-agnt-unsubscriber-schedule agnt true)
-          (reschedule-agnt-gc agnt)
+        (let [tkt (ticket), eventq (empty-q)]
           (if now-state
-            (do (replace-ticket agnt (:ticket now-state) ticket)
+            (do (replace-ticket agnt (:ticket now-state) tkt)
                 (update-agnt-state agnt assoc :eventq eventq)
                 (-?> now-state :eventq (.add ["requestInvalidated"])))
-            (do (when ticket (swap! ticket-agnt assoc ticket agnt))
+            (do (when tkt (swap! ticket-agnt assoc tkt agnt))
                 (swap! agnt-state assoc agnt
-                       {:ticket ticket :eventq eventq
+                       {:ticket tkt :eventq eventq
                         :exten-status (exten-status agnt)
                         :calls (calls-in-progress agnt)})))
           (when (not= (set qs) (-?> now-state :amiq-status keys set))
             (update-agnt-state agnt assoc :amiq-status (agnt-qs-status agnt qs)))
           (let [st (@agnt-state agnt)]
+            (when-not (st :sink)
+              (set-agnt-unsubscriber-schedule agnt true)
+              (reschedule-agnt-gc agnt))
             (push-event agnt "extensionStatus" (st :exten-status))
             (push-event agnt "queueMemberStatus" (st :amiq-status))
             (push-event agnt "phoneNumber" (-?> st :calls first val)))
           (push-event agnt "queueCount"
                       (into {} (for [[amiq {:keys [cnt]}] (select-keys @amiq-cnt-agnts qs)] [amiq cnt])))
-          ticket)
+          tkt)
         (do
           (swap! ticket-agnt dissoc (:ticket now-state))
           (swap! agnt-state dissoc agnt)
