@@ -46,6 +46,7 @@
              :originate-context "default"
              :originate-timeout-seconds 45
              :poll-timeout-seconds 30
+             :unsub-delay-seconds 15
              :agent-gc-delay-minutes 180}]
     (px/ami-connect host username password cfg))
   (reset! server (run-jetty (-> (var app-main)
