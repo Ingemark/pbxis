@@ -23,7 +23,7 @@ Implementations can choose by which mechanism the client will receive the events
 
 * can issue commands to Asterisk, such as originating a call or managing agent status;
 
-* robust to connection failures: automatically reconnects and restores the tracked state;
+* robust to AMI connection failures: automatically reconnects and restores the tracked state;
 
 * robust to client connection failures: keeps enqueueing events for a configured period within which a client can reconnect and continue receiving events with no loss;
 
@@ -46,7 +46,7 @@ While connected, these functions are supported:
 
 `register-sink`: register an event sink function that will asynchronously receive events.
 
-`events-for`: synchronously gather events for a registered agent. The function blocks until an event occurs within the timeout period. If the agent was configured (by calling `config-agnt`) with at least one event listener, this function will not supply any events.
+`events-for`: synchronously gather events for a registered agent.
 
 `originate-call`: place a phone call to the supplied phone number and patch it through to agent's extension.
 
