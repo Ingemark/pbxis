@@ -46,7 +46,7 @@ While connected, these functions are supported:
 
 `register-sink`: register an event sink function that will asynchronously receive events.
 
-`events-for`: synchronously gather events for a registered agent.
+`events-for`: synchronously gather events for a registered agent. Allows trivial implementation of long polling, but will use a thread per each client connection.
 
 `originate-call`: place a phone call to the supplied phone number and patch it through to agent's extension.
 
@@ -69,7 +69,7 @@ Events, as returned to `events-for` and passed to callbacks, are simple vectors 
 
 `originateFailed`: when an `originate-call` request failed. Detail: ID of the request, as previously returned by `originate-call`.
 
-`newTicket`: after a new event sink function is registered, it receives a ticket it can use later to reconnect in the case of a failure.
+`newTicket`: after a new event sink function is registered, it receives a ticket it can use later to reconnect in the case of a failure. Detail: the ticket (a string).
 
 
 ## Examples
