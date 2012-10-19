@@ -9,7 +9,7 @@ The library is designed with the following scenario in mind (but in no way limit
 * the web application subscribes an agent to the *pbxis* service and passes its event-stream URL to the agent's browser;
 * the browser contacts *pbxis* directly to receive the event stream.
 
-Implementations can choose by which mechanism the client will receive the events. In addition to the natural asynchronous model, the library has additional support specifically geared towards an easy implementation of long polling.
+Implementations can choose by which mechanism the client will receive the events. In addition to the natural asynchronous model, the library has a blocking function which makes the implementation of long polling trivially easy to achieve.
 
 ## Feature highlights
 
@@ -24,6 +24,8 @@ Implementations can choose by which mechanism the client will receive the events
 * can issue commands to Asterisk, such as originating a call or managing agent status;
 
 * robust to connection failures: automatically reconnects and restores the tracked state;
+
+* robust to client connection failures: keeps enqueueing events for a configured period within which a client can reconnect and continue receiving events with no loss;
 
 * uses a single AMI connection to cater for all registered agents;
 
@@ -41,6 +43,8 @@ Implementations can choose by which mechanism the client will receive the events
 While connected, these functions are supported:
 
 `config-agnt`: register a call-center agent with the names of Asterisk queues the agent is interested in. This function accepts an optional list of event listener functions.
+
+`register-sink`: register an event sink function that will asynchronously receive events.
 
 `events-for`: synchronously gather events for a registered agent. The function blocks until an event occurs within the timeout period. If the agent was configured (by calling `config-agnt`) with at least one event listener, this function will not supply any events.
 
@@ -64,6 +68,8 @@ Events, as returned to `events-for` and passed to callbacks, are simple vectors 
 `agentComplete`: contains summary info on the just-completed agent call. Details: unique ID of the call (string), talk time in seconds (integer), hold time in seconds (integer), path to the recorded call on the server (string).
 
 `originateFailed`: when an `originate-call` request failed. Detail: ID of the request, as previously returned by `originate-call`.
+
+`newTicket`: after a new event sink function is registered, it receives a ticket it can use later to reconnect in the case of a failure.
 
 
 ## Examples
