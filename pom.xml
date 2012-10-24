@@ -16,7 +16,7 @@
   <scm>
     <connection>scm:git:git://github.com/Inge-mark/pbxis.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/Inge-mark/pbxis.git</developerConnection>
-    <tag>150cc3e6ab46ea13d8bedfb7a8129f5c12bef9c9</tag>
+    <tag>6dfe7d809fec31c3b7a3689a533133c08b73b171</tag>
     <url>https://github.com/Inge-mark/pbxis</url>
   </scm>
   <build>
@@ -70,6 +70,11 @@
       <groupId>org.clojure</groupId>
       <artifactId>core.incubator</artifactId>
       <version>0.1.2</version>
+    </dependency>
+    <dependency>
+      <groupId>lamina</groupId>
+      <artifactId>lamina</artifactId>
+      <version>0.5.0-beta7</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>

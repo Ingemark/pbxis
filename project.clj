@@ -5,6 +5,7 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [org.clojure/core.incubator "0.1.2"]
+                 [lamina "0.5.0-beta7"]
                  [org.slf4j/slf4j-api "1.6.1"]
                  [org.slf4j/log4j-over-slf4j "1.6.4"]
                  [ch.qos.logback/logback-classic "1.0.3"]
