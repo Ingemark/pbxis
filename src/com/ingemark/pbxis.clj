@@ -35,7 +35,7 @@
 
 (defonce ^:private lock (Object.))
 
-(defonce ami-connection (atom nil))
+(defonce ^:private ami-connection (atom nil))
 
 (defonce ^:private amiq-cnt-agnts (atom {}))
 
@@ -48,6 +48,8 @@
 (defonce ^:private agnt-gc (atom {}))
 
 (defonce ^:private memory (atom {}))
+
+(defonce ^:private oblivion (constantly nil))
 
 (defn- >?> [& fs] (reduce #(when %1 (%1 %2)) fs))
 
@@ -91,7 +93,11 @@
    (mapv event-bean)))
 
 (defn- schedule [task & [delay unit]]
-  (.schedule lamina.core.threads/scheduled-executor task (or delay 0) (or unit TimeUnit/SECONDS)))
+  (m/run-pipeline nil
+                  (if delay (m/wait-stage (->> delay (.toMillis unit))) identity)
+                  (fn [_] (task))))
+
+(defn- cancel [async-result] (when async-result (m/enqueue async-result :cancel)))
 
 (defn- remember [k v timeout]
   (swap! memory assoc k v)
@@ -129,7 +135,7 @@
 (defn- set-schedule [task-atom agnt delay task]
   (let [newsched (when delay
                    (apply schedule #(locking lock (swap! task-atom dissoc agnt) (task)) delay))]
-    (swap! task-atom update-in [agnt] #(do (-?> % (.cancel false)) newsched))))
+    (swap! task-atom update-in [agnt] #(do (cancel %) newsched))))
 
 (declare ^:private config-agnt)
 
@@ -141,12 +147,14 @@
                 #(locking lock
                    (loginfo "Unsubscribe agent" agnt)
                    (when-let [now-state (@agnt-state agnt)]
+                     (-?> now-state :eventch (m/receive-all oblivion))
                      (swap! ticket-agnt dissoc (now-state :ticket))
-                     (update-agnt-state agnt dissoc :ticket :eventch)))))
+                     (update-agnt-state agnt dissoc :ticket)))))
 
 (defn- ticket [] (-> (java.util.UUID/randomUUID) .toString))
 
-(def int->exten-status {0 "not_inuse" 1 "inuse" 2 "busy" 4 "unavailable" 8 "ringing" 16 "onhold"})
+(def ^:private int->exten-status
+  {0 "not_inuse" 1 "inuse" 2 "busy" 4 "unavailable" 8 "ringing" 16 "onhold"})
 
 (defn- event->member-status [event]
   (let [p (:paused event), s (:status event)]
@@ -242,7 +250,7 @@ agnt: agent's phone extension number.
 qs: a collection of agent queue names. If empty or nil, the agent is
     unsubscribed.
 
-Returns the ticket (string) to be passed to events-for or attach-sink. The
+Returns the ticket (string) to be passed to long-poll or attach-sink. The
 ticket will be valid for unsub-delay-seconds.
 
 If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
@@ -252,13 +260,11 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
     (swap! amiq-cnt-agnts update-amiq-cnt-agnts agnt qs)
     (let [now-state (@agnt-state agnt)]
       (if (seq qs)
-        (let [tkt (ticket), eventch (m/channel)]
+        (let [tkt (ticket), eventch (m/permanent-channel)]
           (if now-state
             (do (replace-ticket agnt (:ticket now-state) tkt)
-                (update-agnt-state agnt assoc :eventch eventch :sink nil)
-                (doto (-?> now-state :eventch)
-                  (m/enqueue ["closed"])
-                  m/close))
+                (update-agnt-state agnt assoc :eventch eventch :sinkch nil)
+                (doto (-> now-state :eventch) (m/enqueue ["closed"]) m/close))
             (do (swap! ticket-agnt assoc tkt agnt)
                 (swap! agnt-state assoc agnt
                        {:ticket tkt :eventch eventch :sink nil
@@ -278,92 +284,112 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
           tkt)
         (do
           (swap! ticket-agnt dissoc (:ticket now-state))
+          (when-let [eventch (>?> @agnt-state agnt :eventch)]
+            (doto eventch (m/enqueue ["closed"]) m/close))
           (swap! agnt-state dissoc agnt)
           (<< "Agent ~{agnt} unsubscribed"))))))
 
-(defn attach-sink
-  "Registers a sink (a unary function) for an agent's events.
-Requires a ticket. Returns a new ticket.  The supplied ticket is
-invalidated.
+(defn detach-sink
+  "Deregisters the sink (if any) from the supplied agent's event
+   channel. The channel will continue to accumulate events for another
+   unsub-delay-seconds and if another event consumer is attached
+   within this period, no events will be lost.
 
-The very first call to the sink function will pass the
-event [\"newTicket\" newtkt], where newtkt is the same ticket that is
-returned by this function.
+   Parameter: either agent ID or a valid ticket. The ticket is NOT
+   invalidated by this action, but is subject to expiry after
+   unsub-delay-seconds."
+  [key]
+  (locking lock
+    (let [agnt (or (@ticket-agnt key) key)]
+      (update-agnt-state agnt update-in [:sinkch] #(do (when % (m/close %)) nil))
+      (reschedule-agnt-gc agnt)
+      (set-agnt-unsubscriber-schedule agnt true)
+      (<< "Detached event sink for agent ~{agnt}"))))
 
-If the sink function throws an exception, it is automatically
-deregistered and the unsubscribe countdown starts. If a new sink
-is registered within unsub-delay-seconds, it will receive all the
-events following the one whose handling threw the exception.
+(defn attach-sink [tkt sinkch]
+  "Attaches the supplied Lamina channel to the agent's event channel.
+   Requires a ticket. Returns a new ticket.  The supplied ticket is
+   invalidated.
 
-If this function is called while a call to events-for is in progress
-for the same agent, the resulting behavior is unspecified."
-  [tkt sink]
+   The very first message in the sink channel will be the event
+   [\"newTicket\" newtkt], where newtkt is the same ticket that is
+   returned by this function.
+
+   If the sink channel is closed (including an error state), the
+   unsubscribe countdown starts. If a new sink is registered within
+   unsub-delay-seconds, it will receive all the events following the
+   last one consumed by the closed sink.
+
+   If this function is called while an async-result received from
+   long-poll is pending for the same agent, the resulting behavior is
+   unspecified."
   (locking lock
     (when-let [agnt (@ticket-agnt tkt)]
-      (when-let [ch (>?> @agnt-state agnt :eventch)]
+      (let [eventch (>?> @agnt-state agnt :eventch)]
+        (m/cancel-callback eventch oblivion)
         (set-schedule agnt-gc agnt nil nil)
         (let [newtkt (ticket)]
-          (sink ["newTicket" newtkt])
-          (update-agnt-state agnt update-in [:sink]
-                             #(do (m/cancel-callback ch %) sink))
-          (m/receive-all ch sink)
+          (update-agnt-state agnt update-in [:sinkch]
+                             #(do (when % (m/close %)) sinkch))
+          (m/on-closed sinkch #(detach-sink agnt))
+          (m/enqueue sinkch ["newTicket" newtkt])
+          (m/siphon eventch sinkch)
           (replace-ticket agnt tkt newtkt)
           (set-agnt-unsubscriber-schedule agnt false)
           newtkt)))))
 
-(defn detach-sink
-  "Deregisters the sink (if any) from the supplied agent's event
-channel. The channel will continue to accumulate events for
-another unsub-delay-seconds and if another event consumer is attached
-within this period, no events will be lost.
+(defn attach-sink-fn
+  "A convenience function that allows the client to avoid direct
+   dependency on lamina. Works exactly like attach-sink, but accepts a
+   callback function that will receive all events, instead of a lamina
+   channel. The sink-fn will be attached as a callback to an
+   implicitly created sink channel. The callback receives each event
+   as it occurs.  If it throws an exception, this automatically puts
+   the associated sink channel into an error state."
+  [tkt sink-fn]
+  (attach-sink tkt (m/sink sink-fn)))
 
-Parameter: either agent ID or a valid ticket."
-  [key]
-  (locking lock
-    (let [agnt (or (@ticket-agnt key) key)]
-      (update-agnt-state agnt
-                         (fn [st]
-                           (update-in st [:sink]
-                                      #(do (-?> (st :eventch) (m/cancel-callback %)) nil))))
-      (reschedule-agnt-gc agnt)
-      (set-agnt-unsubscriber-schedule agnt true)
-      (<< "Deregistered event sink for agent ~{agnt}"))))
+(defn long-poll
+  "Returns a lamina async-result that is realized in a manner suitable
+   to implement long polling without blocking a thread. The result
+   will be realized either immediately if there are events already
+   enqueued, or when a new event occurs within the long polling
+   timeout period, or at the latest when the timeout elapses. If an
+   event occurs while waiting for it, more events will be accepted for
+   a short period (on the order of 100 ms) in order to pick up all
+   events occuring in a burst. The result is of the form
 
-(defn events-for
-  "Synchronously receives events associated with a ticket. The
-function blocks until an event appears or the configured poll-timeout
-elapses. The supplied ticket is immediately invalidated and the next
-call must use the ticket returned by the current call. The ticket is
-valid for unsub-delay-seconds. If the next call arrives within the
-ticket's validity period, it will receive all events following the
-last event received by the current call.
+   {:ticket \"new-ticket\" :events [events]}
 
-Returns a map {:ticket \"new-ticket\" :events [events]}.
+   where under :ticket is the ticket that must be used in the next
+   call to this function. The supplied ticked is immediately
+   invalidated and the new ticket will expire unsub-delay-seconds
+   after this result is realized.  If the next call arrives within the
+   ticket's validity period, it will receive all events following the
+   last event received by the current call.
 
-If the events vector contains a \"closed\" event, that means
-that config-agnt was called concurrently for the agent associated
-with the current call to this function. In that case the ticket returned
-by this call is already invalid."
+   If the events vector contains a \"closed\" event, that means that
+   config-agnt was called concurrently for the agent associated with
+   the current call to this function. In that case the ticket returned
+   by this call is already invalid.
+
+   Since lamina async-result implements IDeref, the return value of
+   this function does not necessarily introduce a dependency on
+   lamina. It can be passed to the standard Clojure function deref (or
+   @)."
   [tkt]
-  (when-let [[agnt ch newtkt] (locking lock
-                                (when-let [agnt (@ticket-agnt tkt)]
-                                  (when-let [ch (>?> @agnt-state agnt :eventch)]
-                                    (reschedule-agnt-gc agnt)
-                                    (let [newtkt (ticket)]
-                                      (replace-ticket agnt tkt newtkt)
-                                      (set-agnt-unsubscriber-schedule agnt false)
-                                      [agnt ch newtkt]))))]
-    (try
-      (let [evs (node/drain (chan/emitter-node ch))
-            evs (if (seq evs)
-                  evs
-                  (try (let [ev @(m/with-timeout (poll-timeout) (m/read-channel ch))]
-                         (Thread/sleep EVENT-BURST-MILLIS)
-                         (conj (node/drain (chan/emitter-node ch)) ev))
-                       (catch TimeoutException _ nil)))]
-        (spy "Events for" agnt {:ticket newtkt :events (vec evs)}))
-      (finally (when (= newtkt (>?> @agnt-state agnt :ticket))
-                 (set-agnt-unsubscriber-schedule agnt true))))))
+  (let [ch (doto (m/channel) m/read-channel), newtkt (attach-sink tkt ch)
+        polling-result #(-> {:ticket %1 :events (vec %2)})]
+    (if-let [evs (m/channel->seq ch)]
+      (m/success-result (polling-result newtkt evs))
+      (let [finally #(do (detach-sink newtkt) %)]
+        (m/run-pipeline (m/read-channel* ch :timeout (poll-timeout), :on-timeout :xx)
+                        {:error-handler finally}
+                        (m/wait-stage EVENT-BURST-MILLIS)
+                        #(polling-result
+                          newtkt
+                          (let [evs (m/channel->seq ch)] (if (not= % :xx) (conj evs %) evs)))
+                        finally)))))
 
 (defn- broadcast-qcount [ami-event]
   (locking lock
@@ -521,15 +547,15 @@ cfg: a map of configuration parameters---
      :originate-timeout-seconds -- time to wait for the called party to
        answer the phone.
 
-     :poll-timeout-seconds -- timeout value for the events-for function.
+     :poll-timeout-seconds -- timeout value for the long-poll function.
 
      :unsub-delay-seconds -- how long to keep accumulating events into
        the event channel while no consumers are attached.
 
      :agent-gc-delay-minutes -- grace period within which to keep
        tracking the state of an agent after he was automatically
-       unsubscribed due to client inactivity (events-for not getting
-       called within half of poll-timeout).  Some state cannot be
+       unsubscribed due to client inactivity (long-poll not getting
+       called within unsub-delay-seconds).  Some state cannot be
        regenerated later, such as the phone number of the party called
        by originate-call."
   [host username password cfg]
