@@ -11,7 +11,8 @@
 
 (ns com.ingemark.pbxis
   (require [clojure.set :as set] [clojure.data :as d]
-           [lamina.core :as m] [lamina.core.graph.node :as node] [lamina.core.channel :as chan]
+           [lamina.core :as m] [lamina.core.graph.node :as node]
+           [lamina.core.channel :as chan] [lamina.executor :as ex]
            [com.ingemark.logging :refer :all]
            (clojure.core [incubator :refer (-?> -?>> dissoc-in)] [strint :refer (<<)]))
   (import (org.asteriskjava.manager ManagerConnectionFactory ManagerEventListener)
@@ -92,16 +93,16 @@
    .getEvents
    (mapv event-bean)))
 
-(defn- schedule [task & [delay unit]]
+(defn- schedule [task delay unit]
   (m/run-pipeline nil
-                  (if delay (m/wait-stage (->> delay (.toMillis unit))) identity)
+                  (m/wait-stage (->> delay (.toMillis unit)))
                   (fn [_] (task))))
 
 (defn- cancel [async-result] (when async-result (m/enqueue async-result :cancel)))
 
 (defn- remember [k v timeout]
   (swap! memory assoc k v)
-  (schedule #(swap! memory dissoc k) timeout))
+  (schedule #(swap! memory dissoc k) timeout TimeUnit/SECONDS))
 
 (defn- recall [k] (when-let [v (@memory k)] (swap! memory dissoc k) v))
 
@@ -419,22 +420,22 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
         (let [tru (Object.)
               activating (swap! activating-eventfilter #(or % tru))]
           (when (= activating tru)
-            (schedule #(try
-                         (send-action
-                          (spy (<< "Received unfiltered event ~{t}, privilege ~(event :privilege).")
-                               "Sending" (action "Events" {:eventMask "agent,call"})))
-                         (finally (reset! activating-eventfilter nil)))))))
+            (ex/task (try
+                       (send-action
+                        (spy (<< "Received unfiltered event ~{t}, privilege ~(event :privilege).")
+                             "Sending" (action "Events" {:eventMask "agent,call"})))
+                       (finally (reset! activating-eventfilter nil)))))))
       (logdebug 'ami-event "AMI event\n" t (dissoc event :event-type :privilege)))
     (let [unique-id (event :uniqueId)]
       (condp re-matches t
         #"Connect"
-        (schedule #(let [{:keys [agnt-amiqstatus amiq-cnt]} (full-update-agent-amiq-status)
-                         calls-in-progress (calls-in-progress)]
-                     (doseq [[agnt upd] agnt-amiqstatus] (push-event agnt "queueMemberStatus" upd))
-                     (doseq [[amiq cnt] amiq-cnt] (broadcast-qcount {:queue amiq :count cnt}))
-                     (doseq [agnt (keys @agnt-state)]
-                       (update-agnt-state agnt assoc-in [:calls] select-keys
-                                          (keys (calls-in-progress agnt))))))
+        (ex/task (let [{:keys [agnt-amiqstatus amiq-cnt]} (full-update-agent-amiq-status)
+                       calls-in-progress (calls-in-progress)]
+                   (doseq [[agnt upd] agnt-amiqstatus] (push-event agnt "queueMemberStatus" upd))
+                   (doseq [[amiq cnt] amiq-cnt] (broadcast-qcount {:queue amiq :count cnt}))
+                   (doseq [agnt (keys @agnt-state)]
+                     (update-agnt-state agnt assoc-in [:calls] select-keys
+                                        (keys (calls-in-progress agnt))))))
         #"Join|Leave"
         (broadcast-qcount event)
         #"Dial"
@@ -448,8 +449,8 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
         (register-call (event :agentCalled) unique-id (event :callerIdNum))
         #"AgentComplete"
         (push-event (event :member) "agentComplete"
-                   unique-id (event :talkTime) (event :holdTime)
-                   (-?> event :variables (.get "FILEPATH")))
+                    unique-id (event :talkTime) (event :holdTime)
+                    (-?> event :variables (.get "FILEPATH")))
         #"OriginateResponse"
         (let [action-id (event :actionId)]
           (if (= (event :response) "Success")
@@ -474,9 +475,9 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
         #"QueueMemberPaused"
         (let [q (event :queue), agnt (digits (event :location))
               paused? (event :paused)]
-          (schedule #(let [st (if paused? "paused" ((agnt-qs-status agnt [q]) q))]
-                       (when (update-one-agent-amiq-status agnt q st)
-                         (push-event agnt "queueMemberStatus" {q st})))))
+          (ex/task (let [st (if paused? "paused" ((agnt-qs-status agnt [q]) q))]
+                     (when (update-one-agent-amiq-status agnt q st)
+                       (push-event agnt "queueMemberStatus" {q st})))))
         nil))))
 
 (defn- actionid [] (<< "pbxis-~(.substring (ticket) 0 8)"))
