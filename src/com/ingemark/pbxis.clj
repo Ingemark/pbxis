@@ -382,15 +382,16 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
   (let [ch (doto (m/channel) m/read-channel), newtkt (attach-sink tkt ch)
         polling-result #(-> {:ticket %1 :events (vec %2)})
         finally #(do (m/close ch) %)]
-    (if-let [evs (m/channel->seq ch)]
-      (finally (m/success-result (polling-result newtkt evs)))
-      (m/run-pipeline (m/read-channel* ch :timeout (poll-timeout), :on-timeout :xx)
-                      {:error-handler finally}
-                      (m/wait-stage EVENT-BURST-MILLIS)
-                      #(polling-result
-                        newtkt
-                        (let [evs (m/channel->seq ch)] (if (not= % :xx) (conj evs %) evs)))
-                      finally))))
+    (when newtkt
+      (if-let [evs (m/channel->seq ch)]
+        (finally (m/success-result (polling-result newtkt evs)))
+        (m/run-pipeline (m/read-channel* ch :timeout (poll-timeout), :on-timeout :xx)
+                        {:error-handler finally}
+                        (m/wait-stage EVENT-BURST-MILLIS)
+                        #(polling-result
+                          newtkt
+                          (let [evs (m/channel->seq ch)] (if (not= % :xx) (conj evs %) evs)))
+                        finally)))))
 
 (defn- broadcast-qcount [ami-event]
   (locking lock
