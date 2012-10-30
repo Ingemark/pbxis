@@ -300,7 +300,7 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
    unsub-delay-seconds."
   [key]
   (locking lock
-    (let [agnt (or (@ticket-agnt key) key)]
+    (let [agnt (spy "detach-sink" (or (@ticket-agnt key) key))]
       (update-agnt-state agnt update-in [:sinkch] #(do (when % (m/close %)) nil))
       (reschedule-agnt-gc agnt)
       (set-agnt-unsubscriber-schedule agnt true)
