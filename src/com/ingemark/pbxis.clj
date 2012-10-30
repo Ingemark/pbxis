@@ -325,7 +325,7 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
    long-poll is pending for the same agent, the resulting behavior is
    unspecified."
   (locking lock
-    (when-let [agnt (@ticket-agnt tkt)]
+    (when-let [agnt (spy "attach-sink" (@ticket-agnt tkt))]
       (let [eventch (>?> @agnt-state agnt :eventch)]
         (m/cancel-callback eventch oblivion)
         (set-schedule agnt-gc agnt nil nil)
