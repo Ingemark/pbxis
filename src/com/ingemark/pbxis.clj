@@ -291,17 +291,16 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
           (<< "Agent ~{agnt} unsubscribed"))))))
 
 (defn detach-sink
-  "Deregisters the sink (if any) from the supplied agent's event
+  "Detaches the sink (if any) from the supplied agent's event
    channel. The channel will continue to accumulate events for another
-   unsub-delay-seconds and if another event consumer is attached
-   within this period, no events will be lost.
+   unsub-delay-seconds and if another sink is attached within this
+   period, no events will be lost.
 
-   Parameter: either agent ID or a valid ticket. The ticket is NOT
-   invalidated by this action, but is subject to expiry after
-   unsub-delay-seconds."
-  [key]
+   Parameter: a valid ticket. The ticket is NOT invalidated by this
+   action, but is subject to expiry after unsub-delay-seconds."
+   [ticket]
   (locking lock
-    (let [agnt (spy "detach-sink" (or (@ticket-agnt key) key))]
+    (when-let [agnt (spy "detach-sink" (@ticket-agnt ticket))]
       (update-agnt-state agnt update-in [:sinkch] #(do (when % (m/close %)) nil))
       (reschedule-agnt-gc agnt)
       (set-agnt-unsubscriber-schedule agnt true)
