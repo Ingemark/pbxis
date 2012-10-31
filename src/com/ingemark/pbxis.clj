@@ -306,7 +306,7 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
       (set-agnt-unsubscriber-schedule agnt true)
       (<< "Detached event sink for agent ~{agnt}"))))
 
-(defn attach-sink [tkt sinkch]
+(defn attach-sink [sinkch tkt]
   "Attaches the supplied Lamina channel to the agent's event channel.
    Requires a ticket. Returns a new ticket.  The supplied ticket is
    invalidated.
@@ -346,8 +346,8 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
    implicitly created sink channel. The callback receives each event
    as it occurs.  If it throws an exception, this automatically puts
    the associated sink channel into an error state."
-  [tkt sink-fn]
-  (attach-sink tkt (m/sink sink-fn)))
+  [sink-fn tkt]
+  (attach-sink (m/sink sink-fn) tkt))
 
 (defn long-poll
   "Returns a lamina async-result that is realized in a manner suitable
@@ -378,7 +378,7 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
    lamina. It can be passed to the standard Clojure function deref (or
    @)."
   [tkt]
-  (let [ch (doto (m/channel) m/read-channel), newtkt (attach-sink tkt ch)
+  (let [ch (doto (m/channel) m/read-channel), newtkt (attach-sink ch tkt)
         polling-result #(-> {:ticket %1 :events (vec %2)})
         finally #(do (m/close ch) %)]
     (when newtkt
