@@ -332,7 +332,7 @@ If unsubscribing, returns a string message \"Agent {agent} unsubscribed\"."
         (let [newtkt (ticket)]
           (update-agnt-state agnt update-in [:sinkch]
                              #(do (when % (m/close %)) sinkch))
-          (m/on-closed sinkch #(detach-sink agnt))
+          (m/on-closed sinkch #(detach-sink newtkt))
           (m/enqueue sinkch ["newTicket" newtkt])
           (m/siphon eventch sinkch)
           (replace-ticket agnt tkt newtkt)
