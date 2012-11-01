@@ -1,35 +1,14 @@
-function pbx_connection(is_connected) {}
-function pbx_agent_status(queue, status) {}
-function pbx_extension_status(status) {}
-function pbx_queue_count(queue, count) {}
-function pbx_phone_num(num) {}
-
 function handle_events(events) {
     var result = true;
     $.each(events, function(_, e) {
-        //console.log("Event " + e);
-        switch (e[0]) {
-        case "queueMemberStatus":
-            $.each(e[1], pbx_agent_status);
-            break;
-        case "extensionStatus":
-            pbx_extension_status(e[1]);
-            break;
-        case "queueCount":
-            $.each(e[1], pbx_queue_count);
-            break;
-        case "phoneNumber":
-            pbx_phone_num(e[1]);
-            break;
-        case "closed": result = false;
-        }
+        result &= handle_event(e);
     });
     return result;
 }
 
 function pbx_long_poll(ticket) {
     $.getJSON("/agent/"+ticket+"/long-poll", function(r) {
-        if (handle_events(r.events)) pbx_long_poll(r.ticket);
+        if (handle_events(r)) pbx_long_poll(ticket);
         else pbx_connection(false);
     }).error(function() {pbx_connection(false)});
 }

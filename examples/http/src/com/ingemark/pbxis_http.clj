@@ -21,9 +21,42 @@
 
 (defn html [type agnt]
   (fn [_] (-> (str "client.html") slurp
-              (s/replace "$pbxis.js$" (str "/pbxis-" type ".js"))
+              (s/replace "$pbxis-adapter.js$" (str "/pbxis-" type ".js"))
               (s/replace "$agnt$" agnt)
               r/response (r/content-type "text/html") (r/charset "UTF-8"))))
+
+(defn ticket [] (-> (java.util.UUID/randomUUID) .toString))
+
+(def ticket->agnt (ref {}))
+(def agnt->ticket (ref {}))
+(def poll-timeout (atom 30000))
+(def EVENT-BURST-MILLIS 100)
+
+(defn config-agnt [agnt qs]
+  (when-let [close-signal (px/config-agnt agnt qs)]
+    (let [tkt (ticket)]
+      (dosync
+       (alter ticket->agnt dissoc (agnt->ticket agnt))
+       (alter ticket->agnt assoc tkt agnt)
+       (alter agnt->ticket assoc agnt tkt))
+      (m/run-pipeline close-signal
+                      #(dosync (alter ticket->agnt dissoc tkt)
+                               (when (= ticket (agnt->ticket agnt))
+                                 (dissoc agnt->ticket agnt))))
+      tkt)))
+
+(defn long-poll [ticket]
+  (when-let [agnt (@ticket->agnt ticket)]
+    (when-let [sinkch (px/attach-sink (m/channel) agnt)]
+      (let [finally #(do (m/close sinkch) %)]
+        (if-let [evs (m/channel->seq sinkch)]
+          (finally (m/success-result (vec evs)))
+          (m/run-pipeline (m/read-channel* sinkch :timeout (poll-timeout), :on-timeout :xx)
+                          {:error-handler finally}
+                          (m/wait-stage EVENT-BURST-MILLIS)
+                          #(vec (let [evs (m/channel->seq sinkch)]
+                                  (if (not= % :xx) (conj evs %) evs)))
+                          finally))))))
 
 (defn websocket-events [ticket]
   (fn [ch _]
@@ -49,8 +82,8 @@
    [&]
    [wrap-json-params
     ["agent" key &]
-    [[] {:post [{:strs [queues]} (ok px/config-agnt key queues)]}
-     ["long-poll"] {:get (ok px/long-poll key)}
+    [[] {:post [{:strs [queues]} (ok config-agnt key queues)]}
+     ["long-poll"] {:get (ok long-poll key)}
      ["websocket"] {:get (ah/wrap-aleph-handler (websocket-events key))}
      ["sse"] {:get (ok #(doto (m/channel) (px/attach-sink key)))}
      ["originate"] {:post [{:strs [phone]} (ok px/originate-call key phone)]}
@@ -74,6 +107,7 @@
         cfg (into {} (remove #(nil? (val %)) cfg))
         {:strs [http-port ami-host ami-username ami-password]} cfg
         cfg (dissoc cfg "http-port" "ami-host" "ami-username" "ami-password")]
+    (reset! poll-timeout (* 1000 (cfg :poll-timeout-seconds)))
     (px/ami-connect ami-host ami-username ami-password cfg)
     (reset! stop-server (ah/start-http-server (-> (var app-main)
                                                   (wrap-file "static-content")
