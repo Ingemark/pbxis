@@ -3,7 +3,7 @@
   <groupId>com.ingemark</groupId>
   <artifactId>pbxis</artifactId>
   <packaging>jar</packaging>
-  <version>0.3.2</version>
+  <version>0.3.2-SNAPSHOT</version>
   <name>pbxis</name>
   <description>Asterisk Call Center Adapter</description>
   <url>http://www.inge-mark.hr</url>
@@ -16,7 +16,7 @@
   <scm>
     <connection>scm:git:git://github.com/Inge-mark/pbxis.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/Inge-mark/pbxis.git</developerConnection>
-    <tag>882ff8e8def0bbd13d01b3e7123ff3bb96d1f2db</tag>
+    <tag>e4908340e6f831ce76a866106cff316427649d0c</tag>
     <url>https://github.com/Inge-mark/pbxis</url>
   </scm>
   <build>
