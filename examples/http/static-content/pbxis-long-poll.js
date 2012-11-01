@@ -4,14 +4,6 @@ function pbx_extension_status(status) {}
 function pbx_queue_count(queue, count) {}
 function pbx_phone_num(num) {}
 
-
-function pbx_long_poll(ticket) {
-    $.getJSON("/agent/"+ticket, function(r) {
-        if (handle_events(r.events)) pbx_long_poll(r.ticket);
-        else pbx_connection(false);
-    }).error(function() {pbx_connection(false)});
-}
-
 function handle_events(events) {
     var result = true;
     $.each(events, function(_, e) {
@@ -29,10 +21,17 @@ function handle_events(events) {
         case "phoneNumber":
             pbx_phone_num(e[1]);
             break;
-        case "requestInvalidated": result = false;
+        case "closed": result = false;
         }
     });
     return result;
+}
+
+function pbx_long_poll(ticket) {
+    $.getJSON("/agent/"+ticket+"/long-poll", function(r) {
+        if (handle_events(r.events)) pbx_long_poll(r.ticket);
+        else pbx_connection(false);
+    }).error(function() {pbx_connection(false)});
 }
 
 function pbx_start(agent, queues) {

@@ -6,7 +6,7 @@
 <script
 src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"
 type="text/javascript"></script>
-<script type="text/javascript" src="pbxis.js"></script>
+<script type="text/javascript" src="$pbxis.js$"></script>
 <script type="text/javascript">
   var my_q = 'q1'
   function pbx_connection(is_connected) {
@@ -27,7 +27,7 @@ type="text/javascript"></script>
   function pbx_phone_num(num) {
     $('#phone_num').html(num);
   }
-  $(function() { pbx_connection(false); pbx_start("148", [my_q, 'q2']);})
+  $(function() { pbx_connection(false); pbx_start("$agnt$", [my_q, 'q2']);})
 </script>
 <body>
 <table border="1px">
