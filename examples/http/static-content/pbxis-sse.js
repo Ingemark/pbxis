@@ -8,9 +8,15 @@ function pbx_start(agent, queues) {
             dataType: "json",
             success: function(ticket) {
                 eventSource = new EventSource("/agent/"+ticket+"/sse");
-                pbx_connection(true);
                 eventSource.onopen = function() { pbx_connection(true); }
-                eventSource.onmessage = handle_event;
+                $.each(["queueMemberStatus","extensionStatus","queueCount","phoneNumber","closed"],
+                       function(_, t) { eventSource.addEventListener(t, function (e) {
+                           if (!handle_event({"type":e.type, "data":JSON.parse(e.data)})) {
+                               console.log("Close eventSource");
+                               eventSource.close();
+                           }
+                       }
+                                                                    ); });
             }
         }
     )

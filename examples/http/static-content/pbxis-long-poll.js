@@ -1,7 +1,7 @@
 function handle_events(events) {
     var result = true;
     $.each(events, function(_, e) {
-        result &= handle_event(e);
+        result &= handle_event({"type":e[0], "data":e.slice(1)});
     });
     return result;
 }

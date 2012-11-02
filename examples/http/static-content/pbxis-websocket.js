@@ -11,7 +11,11 @@ function pbx_start(agent, queues) {
                     "ws" + document.location.origin.substring(4) + "/agent/"+ticket+"/websocket");
                 socket.onopen = function() { pbx_connection(true); }
                 socket.onclose = function() { pbx_connection(false); }
-                socket.onmessage = handle_event;
+                socket.onmessage = function(e) {
+                    e = JSON.parse(e.data);
+                    if (!handle_event({"type":e[0], "data":e.slice(1)}))
+                        socket.close();
+                };
             }
         }
     )

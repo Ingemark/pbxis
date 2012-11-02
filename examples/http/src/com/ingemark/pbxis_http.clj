@@ -1,6 +1,6 @@
 (ns com.ingemark.pbxis-http
   (require (com.ingemark [pbxis :as px] [logging :refer :all])
-           [clojure.java.io :as io] [clojure.string :as s]
+           [clojure.java.io :as io] [clojure.string :as s] [clojure.walk :refer (keywordize-keys)]
            [ring.util.response :as r]
            [net.cgrand.moustache :refer (app)]
            (aleph [http :as ah] [formats :as af])
@@ -16,7 +16,11 @@
              (if (m/channel? r)
                {:status 200
                 :headers {"Content-Type" "text/event-stream"}
-                :body (m/map* #(str "data:" (af/encode-json->string %) "\n\n") r)}
+                :body (m/map* #(do (logdebug "Send SSE" %)
+                                   (str "event: " (first %) "\n"
+                                        "data: " (af/encode-json->string (next %)) "\n"
+                                        "\n"))
+                                     r)}
                ((if (nil? r) r/not-found r/response) (af/encode-json->string r)))))))
 
 (defn html [type agnt]
@@ -40,18 +44,19 @@
        (alter ticket->agnt assoc tkt agnt)
        (alter agnt->ticket assoc agnt tkt))
       (m/run-pipeline close-signal
-                      #(dosync (alter ticket->agnt dissoc tkt)
-                               (when (= ticket (agnt->ticket agnt))
-                                 (dissoc agnt->ticket agnt))))
+                      (fn [_] (dosync (alter ticket->agnt dissoc tkt)
+                                      (when (= ticket (agnt->ticket agnt))
+                                        (dissoc agnt->ticket agnt)))))
       tkt)))
 
 (defn long-poll [ticket]
+  (logdebug "long-poll" ticket)
   (when-let [agnt (@ticket->agnt ticket)]
     (when-let [sinkch (px/attach-sink (m/channel) agnt)]
       (let [finally #(do (m/close sinkch) %)]
         (if-let [evs (m/channel->seq sinkch)]
           (finally (m/success-result (vec evs)))
-          (m/run-pipeline (m/read-channel* sinkch :timeout (poll-timeout), :on-timeout :xx)
+          (m/run-pipeline (m/read-channel* sinkch :timeout @poll-timeout, :on-timeout :xx)
                           {:error-handler finally}
                           (m/wait-stage EVENT-BURST-MILLIS)
                           #(vec (let [evs (m/channel->seq sinkch)]
@@ -61,7 +66,7 @@
 (defn websocket-events [ticket]
   (fn [ch _]
     (m/ground ch)
-    (doto (m/map* af/encode-json->string (m/channel))
+    (doto (m/map* #(spy "Send WebSocket" (af/encode-json->string %)) (m/channel))
       (px/attach-sink ticket)
       (m/siphon ch))))
 
@@ -84,8 +89,8 @@
     ["agent" key &]
     [[] {:post [{:strs [queues]} (ok config-agnt key queues)]}
      ["long-poll"] {:get (ok long-poll key)}
-     ["websocket"] {:get (ah/wrap-aleph-handler (websocket-events key))}
-     ["sse"] {:get (ok #(doto (m/channel) (px/attach-sink key)))}
+     ["websocket"] {:get (ah/wrap-aleph-handler (websocket-events (@ticket->agnt key)))}
+     ["sse"] {:get (ok #(doto (m/channel) (px/attach-sink (@ticket->agnt key))))}
      ["originate"] {:post [{:strs [phone]} (ok px/originate-call key phone)]}
      ["queue" action] {:post [{:as params}
                               (ok px/queue-action action key
@@ -99,15 +104,17 @@
 
 (defn main []
   (System/setProperty "logback.configurationFile" "logback.xml")
-  (let [cfg (into {} (doto (java.util.Properties.) (.load (io/reader "pbxis.properties"))))
+  (let [cfg (->> (doto (java.util.Properties.) (.load (io/reader "pbxis.properties")))
+                 (into {})
+                 keywordize-keys)
         parse-int #(try (Integer/parseInt ^String %) (catch NumberFormatException _ nil))
         cfg (reduce #(update-in %1 [%2] parse-int) cfg
-                    ["http-port" "originate-timeout-seconds" "poll-timeout-seconds"
-                     "unsub-delay-seconds" "agent-gc-delay-minutes"])
+                    [:http-port :originate-timeout-seconds :poll-timeout-seconds
+                     :unsub-delay-seconds :agent-gc-delay-minutes])
         cfg (into {} (remove #(nil? (val %)) cfg))
-        {:strs [http-port ami-host ami-username ami-password]} cfg
-        cfg (dissoc cfg "http-port" "ami-host" "ami-username" "ami-password")]
-    (reset! poll-timeout (* 1000 (cfg :poll-timeout-seconds)))
+        {:keys [http-port ami-host ami-username ami-password]} cfg
+        cfg (dissoc cfg :http-port :ami-host :ami-username :ami-password)]
+    (swap! poll-timeout #(if-let [t (cfg :poll-timeout-seconds)] (* 1000 t) %))
     (px/ami-connect ami-host ami-username ami-password cfg)
     (reset! stop-server (ah/start-http-server (-> (var app-main)
                                                   (wrap-file "static-content")

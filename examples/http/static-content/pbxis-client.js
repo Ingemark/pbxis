@@ -5,22 +5,23 @@ function pbx_queue_count(queue, count) {}
 function pbx_phone_num(num) {}
 
 function handle_event(e) {
-    e = JSON.parse(e.data);
-    console.log("Websocket event " + e);
-    switch (e[0]) {
+    console.log("Handling event " + e.type + ": " + e.data);
+    switch (e.type) {
     case "queueMemberStatus":
-        $.each(e[1], pbx_agent_status);
+        $.each(e.data[0], pbx_agent_status);
         break;
     case "extensionStatus":
-        pbx_extension_status(e[1]);
+        pbx_extension_status(e.data[0]);
         break;
     case "queueCount":
-        $.each(e[1], pbx_queue_count);
+        $.each(e.data[0], pbx_queue_count);
         break;
     case "phoneNumber":
-        pbx_phone_num(e[1]);
+        pbx_phone_num(e.data[0]);
         break;
-    case "closed": return false;
+    case "closed":
+        pbx_connection(false);
+        return false;
     }
     return true;
 }
