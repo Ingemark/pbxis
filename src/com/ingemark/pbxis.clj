@@ -20,12 +20,14 @@
           (java.util.concurrent Executors TimeUnit TimeoutException)
           (clojure.lang Reflector RT)))
 
-(defonce config (atom {:channel-prefix "SCCP/"
-                       :originate-context "default"
-                       :originate-timeout-seconds 45
-                       :poll-timeout-seconds 30
-                       :unsub-delay-seconds 15
-                       :agent-gc-delay-minutes 60}))
+(defonce config (atom {}))
+
+(def default-config {:channel-prefix "SCCP/"
+                     :originate-context "default"
+                     :originate-timeout-seconds 45
+                     :poll-timeout-seconds 30
+                     :unsub-delay-seconds 15
+                     :agent-gc-delay-minutes 60})
 
 (defn- unsub-delay [] [(@config :unsub-delay-seconds) TimeUnit/SECONDS])
 (defn- agnt-gc-delay [] [(@config :agent-gc-delay-minutes) TimeUnit/MINUTES])
@@ -47,6 +49,8 @@
 (defonce ^:private memory (atom {}))
 
 (defn- >?> [& fs] (reduce #(when %1 (%1 %2)) fs))
+
+(defn- call [f] (f))
 
 (defn- invoke [^String m o & args]
   (clojure.lang.Reflector/invokeInstanceMethod o m (into-array Object args)))
@@ -135,12 +139,11 @@
 (declare ^:private config-agnt)
 
 (defn- reschedule-agnt-gc [agnt]
-  (set-schedule agnt-gc agnt (agnt-gc-delay) #(config-agnt agnt [])))
+  (set-schedule agnt-gc agnt (agnt-gc-delay) #(logdebug "GC" agnt (config-agnt agnt []))))
 
 (defn- set-agnt-unsubscriber-schedule [agnt reschedule?]
   (set-schedule agnt-unsubscriber agnt (when reschedule? (unsub-delay))
-                #(locking lock
-                   (-?> (@agnt-state (spy "Unsubscribe agent" agnt)) :eventch m/close))))
+                #(locking lock (-?> (@agnt-state agnt) :unsub-fn call))))
 
 (def ^:private int->exten-status
   {0 "not_inuse" 1 "inuse" 2 "busy" 4 "unavailable" 8 "ringing" 16 "onhold"})
@@ -248,16 +251,22 @@
   (locking lock
     (swap! amiq-cnt-agnts update-amiq-cnt-agnts agnt qs)
     (let [now-state (@agnt-state agnt)]
+      (when now-state
+        (logdebug "Cancel any existing subscription for" agnt)
+        (-?> (now-state :sinkch) (doto (m/enqueue ["closed"]) m/close))
+        (-?> (now-state :unsub-fn) call))
       (if (seq qs)
-        (let [eventch (m/permanent-channel), unsub-result (m/result-channel)]
-          (m/on-closed eventch #(do (update-agnt-state dissoc :eventch)
-                                    (m/enqueue unsub-result ::closed)))
+        (let [eventch (m/permanent-channel), unsub-result (m/result-channel)
+              unsub-fn (fn [] (do (m/enqueue unsub-result ::closed)
+                                  (update-agnt-state agnt update-in [:eventch]
+                                                     #(if (identical? eventch %)
+                                                        (logdebug "Unsubscribe" agnt)
+                                                        %))))]
           (if now-state
-            (do (doto (-> now-state :eventch) (m/enqueue ["closed"]) m/close)
-                (update-agnt-state agnt assoc :eventch eventch, :sinkch nil))
+            (do (update-agnt-state agnt assoc :eventch eventch, :unsub-fn unsub-fn))
             (swap! agnt-state assoc agnt
-                   {:eventch eventch, :exten-status (exten-status agnt)
-                    :calls (calls-in-progress agnt)}))
+                   {:eventch eventch, :unsub-fn unsub-fn
+                    :exten-status (exten-status agnt) :calls (calls-in-progress agnt)}))
           (when (not= (set qs) (-?> now-state :amiq-status keys set))
             (update-agnt-state agnt assoc :amiq-status (agnt-qs-status agnt qs)))
           (let [st (@agnt-state agnt)]
@@ -271,11 +280,7 @@
                       (into {} (for [[amiq {:keys [cnt]}] (select-keys @amiq-cnt-agnts qs)]
                                  [amiq cnt])))
           unsub-result)
-        (do
-          (when-let [eventch (>?> @agnt-state agnt :eventch)]
-            (doto eventch (m/enqueue ["closed"]) m/close))
-          (swap! agnt-state dissoc agnt)
-          nil)))))
+        (do (swap! agnt-state dissoc agnt) nil)))))
 
 (defn attach-sink [sinkch agnt]
   "Attaches the supplied lamina channel to the agent's event channel, if present.
@@ -289,8 +294,10 @@
       (set-schedule agnt-gc agnt nil nil)
       (update-agnt-state agnt update-in [:sinkch]
                          #(do (when % (doto % (m/enqueue ["closed"]) m/close)) sinkch))
+      (logdebug "Attach sink" agnt)
       (m/on-closed sinkch
                    #(locking lock
+                      (logdebug "Closed sink" agnt)
                       (when [(identical? sinkch (>?> @agnt-state agnt :sinkch))]
                         (update-agnt-state agnt dissoc :sinkch)
                         (reschedule-agnt-gc agnt)
@@ -468,7 +475,7 @@ cfg: a map of configuration parameters---
        by originate-call."
   [host username password cfg]
   (locking ami-connection
-    (swap! config merge cfg)
+    (reset! config (spy "PBXIS config" (merge default-config cfg)))
     (let [c (reset! ami-connection
                     (-> (ManagerConnectionFactory. host username password)
                         .createManagerConnection))]

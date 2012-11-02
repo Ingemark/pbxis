@@ -6,8 +6,10 @@
   (s/join " "
           (for [a args]
             (cond
-             (nil? a) "#nil"
-             (or (coll? a) (-> a type .isArray)) (pp/write (if (map? a) a (seq a)) :stream nil)
+             (nil? a)
+             "#nil"
+             (or (coll? a) (-> a type .isArray))
+             (pp/write (if (or (vector? a) (map? a)) a (seq a)) :stream nil)
              (instance? Throwable a)
              (str "\n" (with-out-str (try (trc/print-cause-trace a)
                                           (catch Throwable _
