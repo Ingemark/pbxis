@@ -15,7 +15,8 @@
            [lamina.core.channel :as chan] [lamina.executor :as ex]
            [com.ingemark.logging :refer :all]
            (clojure.core [incubator :refer (-?> -?>> dissoc-in)] [strint :refer (<<)]))
-  (import (org.asteriskjava.manager ManagerConnectionFactory ManagerEventListener)
+  (import lamina.core.graph.node.NodeState
+          (org.asteriskjava.manager ManagerConnectionFactory ManagerEventListener)
           org.asteriskjava.manager.event.ManagerEvent
           (java.util.concurrent Executors TimeUnit TimeoutException)
           (clojure.lang Reflector RT)))
@@ -36,9 +37,16 @@
 
 (defonce ^:private lock (Object.))
 
-(defonce ^:private ami-connection (atom nil))
-
 (defonce ^:private amiq-cnt-agnts (atom {}))
+
+(defonce ^:private event-hub
+  (let [hub (m/channel* :grounded? true :permanent? true :description "Event hub")]
+    (m/receive-all (m/filter* #(= (:type %) "queueCount") hub)
+                   #(let [amiq (% :queue), cnt (% :count)]
+                      (swap! amiq-cnt-agnts assoc-in [amiq :cnt] cnt)))
+    hub))
+
+(defonce ^:private ami-connection (atom nil))
 
 (defonce ^:private agnt-state (atom {}))
 
@@ -51,6 +59,11 @@
 (defn- >?> [& fs] (reduce #(when %1 (%1 %2)) fs))
 
 (defn- call [f] (f))
+
+(defn- close-permanent [ch]
+  (when-let [n (and ch (chan/receiver-node ch))]
+    (node/set-state! n ^NodeState (node/state n) :permanent? false)
+    (m/close ch)))
 
 (defn- invoke [^String m o & args]
   (clojure.lang.Reflector/invokeInstanceMethod o m (into-array Object args)))
@@ -185,7 +198,7 @@
              [[agnt bridgedUniqueId] callerId]))]
     (if agnt (r agnt) r)))
 
-(defn- full-update-agent-amiq-status []
+(defn- full-refresh-agent-amiq-status []
   (loginfo "Refreshing Asterisk queue status")
   (locking lock
     (let [now-agnt-state @agnt-state
@@ -225,10 +238,18 @@
       (when change? (update-agnt-state agnt assoc-in [:amiq-status q] st))
       change?)))
 
-(defn- push-event [agnt k & vs]
-  (let [agnt (digits agnt)]
-    (when-let [ch (:eventch (@agnt-state agnt))]
-      (locking ch (m/enqueue ch (spy "enqueue event" agnt (vec (cons k vs))))))))
+(defn- publish [event] (m/enqueue event-hub event))
+
+(defn- make-event [target-type target event-type & {:as data}]
+  (merge {:type event-type, target-type target} data))
+
+(defn publish-agnt-event [agnt type & data] (publish (apply make-event :agent agnt type data)))
+
+(defn member-event [agnt amiq status]
+  (make-event :agent agnt "queueMemberStatus" :queue amiq :status status))
+
+(defn- publish-qcount-event [ami-event]
+  (publish (make-event :queue (ami-event :queue) "queueCount" :count (ami-event :count))))
 
 (defn config-agnt
   "Sets up an event channel for the supplied agent. If a channel for
@@ -256,31 +277,36 @@
         (-?> (now-state :sinkch) (doto (m/enqueue ["closed"]) m/close))
         (-?> (now-state :unsub-fn) call))
       (if (seq qs)
-        (let [eventch (m/permanent-channel), unsub-result (m/result-channel)
+        (let [eventch (m/permanent-channel)
+              q-set (set qs)
+              unsub-result (m/result-channel)
               unsub-fn (fn [] (do (m/enqueue unsub-result ::closed)
                                   (update-agnt-state agnt update-in [:eventch]
                                                      #(if (identical? eventch %)
-                                                        (logdebug "Unsubscribe" agnt)
+                                                        (do (close-permanent eventch)
+                                                            (logdebug "Unsubscribe" agnt))
                                                         %))))]
           (if now-state
             (do (update-agnt-state agnt assoc :eventch eventch, :unsub-fn unsub-fn))
             (swap! agnt-state assoc agnt
                    {:eventch eventch, :unsub-fn unsub-fn
                     :exten-status (exten-status agnt) :calls (calls-in-progress agnt)}))
-          (when (not= (set qs) (-?> now-state :amiq-status keys set))
+          (when (not= q-set (-?> now-state :amiq-status keys set))
             (update-agnt-state agnt assoc :amiq-status (agnt-qs-status agnt qs)))
           (let [st (@agnt-state agnt)]
-            (when-not (st :sink)
-              (set-agnt-unsubscriber-schedule agnt true)
-              (reschedule-agnt-gc agnt))
-            (push-event agnt "extensionStatus" (st :exten-status))
-            (push-event agnt "queueMemberStatus" (st :amiq-status))
-            (push-event agnt "phoneNumber" (-?> st :calls first val)))
-          (push-event agnt "queueCount"
-                      (into {} (for [[amiq {:keys [cnt]}] (select-keys @amiq-cnt-agnts qs)]
-                                 [amiq cnt])))
+            (set-agnt-unsubscriber-schedule agnt true)
+            (reschedule-agnt-gc agnt)
+            (let [enq #(m/enqueue eventch (apply make-event :agent agnt %&))]
+              (enq "extensionStatus" :status (st :exten-status))
+              (enq "phoneNumber" :number (-?> st :calls first val)))
+            (doseq [[amiq status] (st :amiq-status)]
+              (m/enqueue eventch (member-event agnt amiq status)))
+            (doseq [[amiq {:keys [cnt]}] (select-keys @amiq-cnt-agnts qs)]
+              (m/enqueue eventch (make-event :queue amiq "queueCount" :count cnt))))
+          (m/siphon (m/filter* #(or (= agnt (% :agent)) (q-set (% :queue))) event-hub) eventch)
           unsub-result)
-        (do (swap! agnt-state dissoc agnt) nil)))))
+        (do (close-permanent (>?> @agnt-state agnt :eventch))
+            (swap! agnt-state dissoc agnt) nil)))))
 
 (defn attach-sink [sinkch agnt]
   "Attaches the supplied lamina channel to the agent's event channel, if present.
@@ -306,13 +332,6 @@
       (set-agnt-unsubscriber-schedule agnt false)
       sinkch)))
 
-(defn- broadcast-qcount [ami-event]
-  (locking lock
-    (let [amiq (ami-event :queue), cnt (ami-event :count)]
-      (when-let [cnt-agnts (@amiq-cnt-agnts amiq)]
-        (swap! amiq-cnt-agnts assoc-in [amiq :cnt] cnt)
-        (doseq [agnt (cnt-agnts :agnts)] (push-event agnt "queueCount" {amiq cnt}))))))
-
 (def ^:private ignored-events
   #{"VarSet" "NewState" "NewChannel" "NewExten" "NewCallerId" "NewAccountCode" "ChannelUpdate"
     "RtcpSent" "RtcpReceived" "PeerStatus"})
@@ -325,7 +344,8 @@
     (update-agnt-state agnt #(if phone-num
                                (assoc-in % [:calls id] phone-num)
                                (dissoc-in % [:calls id])))
-    (push-event agnt "phoneNumber" (or phone-num (-?> (@agnt-state agnt) :calls first val)))))
+    (publish-agnt-event agnt "phoneNumber" :number
+                        (or phone-num (-?> (@agnt-state agnt) :calls first val)))))
 
 (defn- handle-ami-event [event]
   (let [t (:event-type event)]
@@ -343,15 +363,16 @@
     (let [unique-id (event :uniqueId)]
       (condp re-matches t
         #"Connect"
-        (ex/task (let [{:keys [agnt-amiqstatus amiq-cnt]} (full-update-agent-amiq-status)
+        (ex/task (let [{:keys [agnt-amiqstatus amiq-cnt]} (full-refresh-agent-amiq-status)
                        calls-in-progress (calls-in-progress)]
-                   (doseq [[agnt upd] agnt-amiqstatus] (push-event agnt "queueMemberStatus" upd))
-                   (doseq [[amiq cnt] amiq-cnt] (broadcast-qcount {:queue amiq :count cnt}))
+                   (doseq [[agnt upd] agnt-amiqstatus, [amiq status] upd]
+                     (publish (member-event agnt amiq status)))
+                   (doseq [[amiq cnt] amiq-cnt] (publish-qcount-event {:queue amiq :count cnt}))
                    (doseq [agnt (keys @agnt-state)]
                      (update-agnt-state agnt assoc-in [:calls] select-keys
                                         (keys (calls-in-progress agnt))))))
         #"Join|Leave"
-        (broadcast-qcount event)
+        (publish-qcount-event event)
         #"Dial"
         (when (= (event :subEvent) "Begin")
           (register-call (event :channel) (event :srcUniqueId) (-> event :dialString digits))
@@ -362,36 +383,35 @@
         #"AgentCalled"
         (register-call (event :agentCalled) unique-id (event :callerIdNum))
         #"AgentComplete"
-        (push-event (event :member) "agentComplete"
-                    unique-id (event :talkTime) (event :holdTime)
-                    (-?> event :variables (.get "FILEPATH")))
+        (publish-agnt-event (event :member) "agentComplete"
+                    :uniqueId unique-id :talkTime (event :talkTime) :holdTime (event :holdTime)
+                    :recording (-?> event :variables (.get "FILEPATH")))
         #"OriginateResponse"
         (let [action-id (event :actionId)]
           (if (= (event :response) "Success")
             (remember unique-id (recall action-id) DUE-EVENT-WAIT-SECONDS)
-            (push-event (event :exten) "originateFailed" action-id)))
+            (publish-agnt-event (event :exten) "originateFailed" :actionId action-id)))
         #"ExtensionStatus"
         (let [status (int->exten-status (event :status))
               agnt (digits (event :exten))]
           (locking lock
             (update-agnt-state agnt assoc :exten-status status)
-            (push-event agnt "extensionStatus" status)))
+            (publish-agnt-event agnt "extensionStatus" :status status)))
         #"QueueMemberStatus"
         (locking lock
           (let [q (event :queue), agnt (digits (event :location)), st (event->member-status event)]
-            (when (update-one-agent-amiq-status agnt q st)
-              (push-event agnt "queueMemberStatus" {q st}))))
+            (when (update-one-agent-amiq-status agnt q st) (publish (member-event agnt q st)))))
         #"QueueMember(Add|Remov)ed" :>>
         #(let [q (event :queue), agnt (digits (event :location))
                st (if (= (% 1) "Add") (event->member-status event) "loggedoff")]
            (update-agnt-state agnt assoc-in [:amiq-status q] st)
-           (push-event agnt "queueMemberStatus" {q st}))
+           (publish (member-event agnt q st)))
         #"QueueMemberPaused"
         (let [q (event :queue), agnt (digits (event :location))
               paused? (event :paused)]
           (ex/task (let [st (if paused? "paused" ((agnt-qs-status agnt [q]) q))]
                      (when (update-one-agent-amiq-status agnt q st)
-                       (push-event agnt "queueMemberStatus" {q st})))))
+                       (publish (member-event agnt q st))))))
         nil))))
 
 (defn- actionid [] (<< "pbxis-~(.substring (-> (java.util.UUID/randomUUID) .toString) 0 8)"))

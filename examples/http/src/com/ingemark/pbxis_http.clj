@@ -66,9 +66,9 @@
 (defn websocket-events [ticket]
   (fn [ch _]
     (m/ground ch)
-    (doto (m/map* #(spy "Send WebSocket" (af/encode-json->string %)) (m/channel))
-      (px/attach-sink ticket)
-      (m/siphon ch))))
+    (-> (->> (px/attach-sink (m/channel) ticket)
+             (m/map* #(spy "Send WebSocket" (af/encode-json->string %))))
+        (m/siphon ch))))
 
 (defn wrap-log-request [handle] #(->> % (spy "HTTP request") handle (spy "HTTP response")))
 
@@ -121,3 +121,31 @@
                                                   wrap-file-info
                                                   ah/wrap-ring-handler)
                                               {:port http-port :websocket true}))))
+
+(defonce ouch (atom nil))
+
+(def app-test
+  (app ["test"] {:get (ah/wrap-aleph-handler
+                     (fn [ch _]
+                       (logdebug "WebSocket request")
+                       (m/receive-all ch #(loginfo "WebSocket received" %))
+                       (let [o (m/map* #(af/encode-json->string %) (m/channel))]
+                         (reset! ouch o)
+                         (m/siphon o ch)
+                         o)))}))
+
+(defn test []
+  (reset! stop-server (ah/start-http-server (-> (var app-test)
+                                                (wrap-file "test-content")
+                                                wrap-file-info
+                                                ah/wrap-ring-handler)
+                                            {:port 8080 :websocket true})))
+
+
+(defn ws-client [] (ah/websocket-client {:url "ws://localhost:8008"}))
+
+(defn echo-handler [ch req] (m/receive-all ch #(do (logdebug "received" %)
+                                                   (m/close ch))))
+
+(defn test-echo-handler []
+  (reset! stop-server (ah/start-http-server #'echo-handler {:port 8008 :websocket true})))
