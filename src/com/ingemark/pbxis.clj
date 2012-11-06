@@ -251,6 +251,10 @@
 (defn- publish-qcount-event [ami-event]
   (publish (make-event :queue (ami-event :queue) "queueCount" :count (ami-event :count))))
 
+(defn- close-sinkch [sinkch agnt] (doto sinkch
+                                    (m/enqueue (make-event :agent agnt "closed"))
+                                    (m/close)))
+
 (defn config-agnt
   "Sets up an event channel for the supplied agent. If a channel for
    the agent already exists, closes it and replaces with a new one,
@@ -274,7 +278,7 @@
     (let [now-state (@agnt-state agnt)]
       (when now-state
         (logdebug "Cancel any existing subscription for" agnt)
-        (-?> (now-state :sinkch) (doto (m/enqueue ["closed"]) m/close))
+        (-?> (now-state :sinkch) (close-sinkch agnt))
         (-?> (now-state :unsub-fn) call))
       (if (seq qs)
         (let [eventch (m/permanent-channel)
@@ -319,7 +323,7 @@
     (when-let [eventch (and sinkch (>?> @agnt-state agnt :eventch))]
       (set-schedule agnt-gc agnt nil nil)
       (update-agnt-state agnt update-in [:sinkch]
-                         #(do (when % (doto % (m/enqueue ["closed"]) m/close)) sinkch))
+                         #(do (when % (close-sinkch % agnt)) sinkch))
       (logdebug "Attach sink" agnt)
       (m/on-closed sinkch
                    #(locking lock
