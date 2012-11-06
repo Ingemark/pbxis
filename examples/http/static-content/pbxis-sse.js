@@ -11,7 +11,10 @@ function pbx_start(agent, queues) {
                 eventSource.onopen = function() { pbx_connection(true); }
                 $.each(["queueMemberStatus","extensionStatus","queueCount","phoneNumber","closed"],
                        function(_, t) { eventSource.addEventListener(t, function (e) {
-                           if (!handle_event({"type":e.type, "data":JSON.parse(e.data)})) {
+                           //console.log("SSE event " + e.data);
+                           var ev = JSON.parse(e.data);
+                           ev.type = e.type;
+                           if (!handle_event(ev)) {
                                console.log("Close eventSource");
                                eventSource.close();
                            }

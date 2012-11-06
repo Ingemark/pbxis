@@ -13,7 +13,7 @@ function pbx_start(agent, queues) {
                 socket.onclose = function() { pbx_connection(false); }
                 socket.onmessage = function(e) {
                     e = JSON.parse(e.data);
-                    if (!handle_event({"type":e[0], "data":e.slice(1)}))
+                    if (!handle_event(e))
                         socket.close();
                 };
             }

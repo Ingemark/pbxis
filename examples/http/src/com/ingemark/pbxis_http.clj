@@ -17,8 +17,8 @@
                {:status 200
                 :headers {"Content-Type" "text/event-stream"}
                 :body (m/map* #(do (logdebug "Send SSE" %)
-                                   (str "event: " (first %) "\n"
-                                        "data: " (af/encode-json->string (next %)) "\n"
+                                   (str "event: " (:type %) "\n"
+                                        "data: " (af/encode-json->string (dissoc % :type)) "\n"
                                         "\n"))
                                      r)}
                ((if (nil? r) r/not-found r/response) (af/encode-json->string r)))))))
