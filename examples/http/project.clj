@@ -9,7 +9,7 @@
                  [net.cgrand/moustache "1.1.0"]
                  [ring/ring-core "1.1.0" :exclusions [javax.servlet/servlet-api]]
                  [ring-json-params/ring-json-params "0.1.3"]
-                 [aleph "0.3.0-beta6"]
+                 [aleph "0.3.0-beta7"]
                  [org.slf4j/slf4j-api "1.6.1"]
                  [ch.qos.logback/logback-classic "1.0.7"]]
   :plugins [[lein-swank "1.4.4"]])
