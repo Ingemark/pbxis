@@ -5,7 +5,7 @@ function pbx_queue_count(queue, count) {}
 function pbx_phone_num(num) {}
 
 function handle_event(e) {
-    //console.log("Handling event " + JSON.stringify(e));
+    console.log("Handling event " + JSON.stringify(e));
     switch (e.type) {
     case "queueMemberStatus":
         pbx_agent_status(e.queue, e.status);
