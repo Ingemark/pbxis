@@ -9,7 +9,7 @@ The library is designed with the following scenario in mind (but in no way limit
 * the web application subscribes an agent to the *pbxis* service and passes its event-stream URL to the agent's browser;
 * the browser contacts *pbxis* directly to receive the event stream.
 
-Implementations can choose by which mechanism the client will receive the events. In addition to the natural asynchronous model, the library has a blocking function which makes the implementation of long polling trivially easy to achieve.
+Events are received through a lamina channel, so it is recommended to implement a server with aleph, although there is no restriction to it.
 
 ## Feature highlights
 
@@ -18,8 +18,6 @@ Implementations can choose by which mechanism the client will receive the events
 * provides a stream of agent-related events through an easily accessible API;
 
 * raw AMI events are collated and digested into a model that minimizes client-side processing;
-
-* supports both synchronous (blocking) and asynchronous (callback-based) reception of events;
 
 * can issue commands to Asterisk, such as originating a call or managing agent status;
 
@@ -44,9 +42,7 @@ While connected, these functions are supported:
 
 `config-agnt`: register a call-center agent with the names of Asterisk queues the agent is interested in. This function accepts an optional list of event listener functions.
 
-`register-sink`: register an event sink function that will asynchronously receive events.
-
-`events-for`: synchronously gather events for a registered agent. Allows trivial implementation of long polling, but will use a thread per each client connection.
+`attach-sink`: register lamina channel as an event sink that will receive events.
 
 `originate-call`: place a phone call to the supplied phone number and patch it through to agent's extension.
 
@@ -55,26 +51,24 @@ While connected, these functions are supported:
 
 ## Reported Events
 
-Events, as returned to `events-for` and passed to callbacks, are simple vectors where the first member determines event type and the rest are event details.
+Events, enqueued into the event sink channel, are maps where the key :type determines event type and the rest are event details.
 
-`queueMemberStatus`: status of the agent with respect to a particular agent queue. Detail: a map `queueName->memberStatus`, where `memberStatus` is one of `#{"unknown", "not_inuse", "inuse", "busy", "unavailable", "ringing", "ringinuse", "onhold"}`. Only updated statuses are sent (the map doesn't usually contain the status for all subscribed queues).
+`queueMemberStatus`: status of the agent with respect to a particular agent queue. Detail: `:queue`, the queue name; `:status`, one of `#{"unknown", "not_inuse", "inuse", "busy", "unavailable", "ringing", "ringinuse", "onhold"}`.
 
-`queueCount`: number of callers waiting in agent queues. Detail: a map `queueName->queueCount`. Only updated counts are sent (the map doesn't usually contain the counts for all subscribed queues).
+`queueCount`: number of callers waiting in an agent queue. Detail: `:queue`, the queue name; `:count`, the queue count.
 
-`extensionStatus`: status of the agent's extension. Detail: a string, one of `#{"not_inuse", "inuse", "busy", "unavailable", "ringing", "onhold"}`.
+`extensionStatus`: status of the agent's extension. Detail: `:status`, one of `#{"not_inuse", "inuse", "busy", "unavailable", "ringing", "onhold"}`.
 
-`phoneNumber`: phone number of the remote party currently patched through to agent's extension. Detail: the phone number (string).
+`phoneNumber`: phone number of the remote party currently patched through to agent's extension. Detail:`:number`, the phone number (string).
 
-`agentComplete`: contains summary info on the just-completed agent call. Details: unique ID of the call (string), talk time in seconds (integer), hold time in seconds (integer), path to the recorded call on the server (string).
+`agentComplete`: contains summary info on the just-completed agent call. Detail: `:uniqueId`, unique ID of the call (string); `:talkTime`, talk time in seconds (integer); `:holdTime`, hold time in seconds (integer); `:recording`, path to the recorded call on the server (string).
 
-`originateFailed`: when an `originate-call` request failed. Detail: ID of the request, as previously returned by `originate-call`.
-
-`newTicket`: after a new event sink function is registered, it receives a ticket it can use later to reconnect in the case of a failure. Detail: the ticket (a string).
+`originateFailed`: when an `originate-call` request failed. Detail: `:actionId`, ID of the request, as previously returned by `originate-call`.
 
 
 ## Examples
 
-The `examples` directory contains a project `http` which implements a simple Ring HTTP server that exposes *pbxis* functions as a lightweight RESTful service. Events can be collected using long polling. The server also provides an HTML homepage which uses JavaScript to connect to the event stream and updates the page with the current status of a call-center agent.
+The `examples` directory contains a project `http` which uses aleph to exposes *pbxis* functions as a lightweight RESTful service. Events can be collected using long polling, Server-sent Events, or WebSockets. The server also provides an HTML user interface to try out each of the event-stream technologies. The relative URL is `/client/<tech>/<agent>`, where <tech> is one of long-poll, sse, or websocket, and <agent> is the extension of the agent whose event stream to receive and visualize.
 
 
 ## License
