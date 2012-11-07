@@ -23,10 +23,9 @@
 
 (defonce config (atom {}))
 
-(def default-config {:channel-prefix "SCCP/"
+(def default-config {:location-prefix "SCCP/"
                      :originate-context "default"
                      :originate-timeout-seconds 45
-                     :poll-timeout-seconds 30
                      :unsub-delay-seconds 15
                      :agent-gc-delay-minutes 60})
 
@@ -117,7 +116,7 @@
 
 (defn- recall [k] (when-let [v (@memory k)] (swap! memory dissoc k) v))
 
-(defn- agnt->location [agnt] (when agnt (str (@config :channel-prefix) agnt)))
+(defn- agnt->location [agnt] (when agnt (str (@config :location-prefix) agnt)))
 
 (defn- update-agnt-state [agnt f & args] (swap! agnt-state #(if (% agnt)
                                                               (apply update-in % [agnt] f args)
@@ -476,7 +475,7 @@ host: host name or IP address of the Asterisk server.
 username, password: AMI username/password
 cfg: a map of configuration parameters---
 
-     :channel-prefix -- string to prepend to agent's extension
+     :location-prefix -- string to prepend to agent's extension
        in order to form the agent \"location\" as known to
        Asterisk. This is typically \"SCCP/\", \"SIT/\" or similar.
 
@@ -485,8 +484,6 @@ cfg: a map of configuration parameters---
 
      :originate-timeout-seconds -- time to wait for the called party to
        answer the phone.
-
-     :poll-timeout-seconds -- timeout value for the long-poll function.
 
      :unsub-delay-seconds -- how long to keep accumulating events into
        the event channel while no consumers are attached.
