@@ -151,7 +151,7 @@
 (declare ^:private config-agnt)
 
 (defn- reschedule-agnt-gc [agnt]
-  (set-schedule agnt-gc agnt (agnt-gc-delay) #(logdebug "GC" agnt (config-agnt agnt []))))
+  (set-schedule agnt-gc agnt (agnt-gc-delay) #(do (logdebug "GC" agnt) (config-agnt agnt []))))
 
 (defn- set-agnt-unsubscriber-schedule [agnt reschedule?]
   (set-schedule agnt-unsubscriber agnt (when reschedule? (unsub-delay))
