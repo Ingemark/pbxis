@@ -13,9 +13,7 @@ function pbx_start(agent, queues) {
                 socket.onclose = function() { console.log("Websocket closed");
                                               pbx_connection(false); }
                 socket.onmessage = function(e) {
-                    e = JSON.parse(e.data);
-                    if (!handle_event(e))
-                        socket.close();
+                    if (!handle_event(JSON.parse(e.data))) socket.close();
                 };
             }
         }
