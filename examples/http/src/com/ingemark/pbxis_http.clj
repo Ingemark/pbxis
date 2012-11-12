@@ -68,8 +68,7 @@
     (m/ground ch)
     (doto (->> (px/attach-sink (m/channel) ticket)
                (m/map* #(spy "Send WebSocket" (af/encode-json->string %))))
-      (m/on-closed #(m/close ch))
-      (m/siphon ch))))
+      (m/join ch))))
 
 (defn wrap-log-request [handle] #(->> % (spy "HTTP request") handle (spy "HTTP response")))
 
