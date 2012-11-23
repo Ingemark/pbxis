@@ -4,7 +4,7 @@
   <groupId>com.ingemark</groupId>
   <artifactId>pbxis</artifactId>
   <packaging>jar</packaging>
-  <version>0.4.2-SNAPSHOT</version>
+  <version>0.4.2</version>
   <name>pbxis</name>
   <description>Asterisk Call Center Adapter</description>
   <url>http://www.inge-mark.hr</url>
@@ -17,7 +17,7 @@
   <scm>
     <connection>scm:git:git://github.com/Inge-mark/pbxis.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/Inge-mark/pbxis.git</developerConnection>
-    <tag>a4fde1c0923ca634422fbf06c55112b577f6def7</tag>
+    <tag>94c16bbb6f5bcd5304a253d4e19801a19198844d</tag>
     <url>https://github.com/Inge-mark/pbxis</url>
   </scm>
   <build>
@@ -80,17 +80,17 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
-      <version>1.6.1</version>
+      <version>1.7.2</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>log4j-over-slf4j</artifactId>
-      <version>1.6.4</version>
+      <version>1.7.2</version>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
-      <version>1.0.3</version>
+      <version>1.0.7</version>
     </dependency>
     <dependency>
       <groupId>org.asteriskjava</groupId>

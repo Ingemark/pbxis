@@ -1,4 +1,4 @@
-(defproject com.ingemark/pbxis "0.4.2-SNAPSHOT"
+(defproject com.ingemark/pbxis "0.4.2"
   :description "Asterisk Call Center Adapter"
   :url "http://www.inge-mark.hr"
   :license {:name "Eclipse Public License"
@@ -6,9 +6,9 @@
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [org.clojure/core.incubator "0.1.2"]
                  [lamina "0.5.0-beta7"]
-                 [org.slf4j/slf4j-api "1.6.1"]
-                 [org.slf4j/log4j-over-slf4j "1.6.4"]
-                 [ch.qos.logback/logback-classic "1.0.3"]
+                 [org.slf4j/slf4j-api "1.7.2"]
+                 [org.slf4j/log4j-over-slf4j "1.7.2"]
+                 [ch.qos.logback/logback-classic "1.0.7"]
                  [org.asteriskjava/asterisk-java "1.0.0.M3" :exclusions [[log4j/log4j]]]]
   :jvm-opts ["-Dlogback.configurationFile=logback.xml"]
   :plugins [[lein-swank "1.4.4"]])
