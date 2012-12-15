@@ -38,7 +38,15 @@
 
 (defn config-agnt [agnt qs]
   (when-let [close-signal (px/config-agnt agnt qs)]
-    (let [tkt (ticket)]
+    (let [tkt (ticket)
+          unsub-result (m/result-channel)
+          unsub-fn (fn [] (do (m/enqueue unsub-result ::closed)
+                              (update-agnt-state agnt update-in [:eventch]
+                                                 #(if (identical? eventch %)
+                                                    (do (close-permanent eventch)
+                                                        (logdebug "Unsubscribe" agnt)
+                                                        nil)
+                                                    %))))]
       (dosync
        (alter ticket->agnt dissoc (agnt->ticket agnt))
        (alter ticket->agnt assoc tkt agnt)
@@ -48,6 +56,42 @@
                                       (when (= ticket (agnt->ticket agnt))
                                         (dissoc agnt->ticket agnt)))))
       tkt)))
+
+(let [now-state (@agnt-state agnt)]
+  (when now-state
+    (logdebug "Cancel any existing subscription for" agnt)
+    (-?> (now-state :sinkch) (close-sinkch agnt))
+    (-?> (now-state :unsub-fn) call))
+  (if (seq qs)
+    (let [eventch (m/permanent-channel)
+          q-set (set qs)]
+      (if now-state
+        (update-agnt-state agnt assoc :eventch eventch, :unsub-fn unsub-fn)
+        (swap! agnt-state assoc agnt
+               {:eventch eventch, :unsub-fn unsub-fn
+                :exten-status (exten-status agnt) :calls (calls-in-progress agnt)}))
+      (when (not= q-set (-?> now-state :amiq-status keys set))
+        (update-agnt-state agnt assoc :amiq-status (agnt-qs-status agnt qs)))
+      (let [st (@agnt-state agnt)]
+        (set-agnt-unsubscriber-schedule agnt true)
+        (reschedule-agnt-gc agnt)
+        (let [enq #(m/enqueue eventch (apply make-event :agent agnt %&))]
+          (enq "extensionStatus" :status (st :exten-status))
+          (enq "phoneNumber" :number (-?> st :calls first val)))
+        (doseq [[amiq status] (st :amiq-status)]
+          (m/enqueue eventch (member-event agnt amiq status)))
+        (doseq [[amiq cnt] (into {} (concat (for [q qs] [q 0]) (select-keys @amiq-cnt qs)))]
+          (m/enqueue eventch (make-event :queue amiq "queueCount" :count cnt))))
+      (m/siphon
+       event-hub
+       (m/siphon->>
+        (m/filter* #(or (= agnt (% :agent)) (q-set (% :queue))))
+        (m/map* (agnt-event-filter agnt))
+        (m/filter* (comp not nil?))
+        eventch))
+      unsub-result)
+    (do (close-permanent (>?> @agnt-state agnt :eventch))
+        (swap! agnt-state dissoc agnt) nil)))
 
 (defn long-poll [ticket]
   (logdebug "long-poll" ticket)
