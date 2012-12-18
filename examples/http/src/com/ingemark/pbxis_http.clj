@@ -39,60 +39,26 @@
 (def EVENT-BURST-MILLIS 100)
 
 (defn config-agnt [agnt qs]
-  (when-let [eventch (px/event-channel agnt qs)]
-    (let [tkt (ticket)
-          unsub-result (m/result-channel)
-          unsub-fn (fn [] (do (m/enqueue unsub-result ::closed)
-                              (update-agnt-state agnt update-in [:eventch]
-                                                 #(if (identical? eventch %)
-                                                    (do (close-permanent eventch)
-                                                        (logdebug "Unsubscribe" agnt)
-                                                        nil)
-                                                    %))))]
-      (let [now-state (@agnt-state agnt)]
-        (when now-state
-          (logdebug "Cancel any existing subscription for" agnt)
-          (-?> (now-state :sinkch) (close-sinkch agnt))
-          (-?> (now-state :unsub-fn) call))
-        (if (seq qs)
-          (let [eventch (m/permanent-channel)
-                q-set (set qs)]
-            (if now-state
-              (update-agnt-state agnt assoc :eventch eventch, :unsub-fn unsub-fn)
-              (swap! agnt-state assoc agnt
-                     {:eventch eventch, :unsub-fn unsub-fn
-                      :exten-status (exten-status agnt) :calls (calls-in-progress agnt)}))
-            (when (not= q-set (-?> now-state :amiq-status keys set))
-              (update-agnt-state agnt assoc :amiq-status (agnt-qs-status agnt qs)))
-            (let [st (@agnt-state agnt)]
-              (set-agnt-unsubscriber-schedule agnt true)
-              (reschedule-agnt-gc agnt)
-              (let [enq #(m/enqueue eventch (apply make-event :agent agnt %&))]
-                (enq "extensionStatus" :status (st :exten-status))
-                (enq "phoneNumber" :number (-?> st :calls first val)))
-              (doseq [[amiq status] (st :amiq-status)]
-                (m/enqueue eventch (member-event agnt amiq status)))
-              (doseq [[amiq cnt] (into {} (concat (for [q qs] [q 0]) (select-keys @amiq-cnt qs)))]
-                (m/enqueue eventch (make-event :queue amiq "queueCount" :count cnt))))
-            (m/siphon
-             event-hub
-             (m/siphon->>
-              (m/filter* #(or (= agnt (% :agent)) (q-set (% :queue))))
-              (m/map* (agnt-event-filter agnt))
-              (m/filter* (comp not nil?))
-              eventch))
-            unsub-result)
-          (do (close-permanent (>?> @agnt-state agnt :eventch))
-              (swap! agnt-state dissoc agnt) nil)))
-      (dosync
-       (alter ticket->agnt dissoc (agnt->ticket agnt))
-       (alter ticket->agnt assoc tkt agnt)
-       (alter agnt->ticket assoc agnt tkt))
-      (m/run-pipeline close-signal
-                      (fn [_] (dosync (alter ticket->agnt dissoc tkt)
-                                      (when (= ticket (agnt->ticket agnt))
-                                        (dissoc agnt->ticket agnt)))))
-      tkt)))
+  (let [eventch (px/event-channel agnt qs)
+        tkt (ticket)]
+    (let [now-state (@agnt-state agnt)]
+      (if (seq qs)
+        (do
+          (when now-state (swap! agnt-state assoc agnt {:eventch eventch}))
+          (let [st (@agnt-state agnt)]
+            (set-agnt-unsubscriber-schedule agnt true)
+            (reschedule-agnt-gc agnt))
+          unsub-result)
+        (do (close-permanent (>?> @agnt-state agnt :eventch)))))
+    (dosync
+     (alter ticket->agnt dissoc (agnt->ticket agnt))
+     (alter ticket->agnt assoc tkt agnt)
+     (alter agnt->ticket assoc agnt tkt))
+    (m/run-pipeline close-signal
+                    (fn [_] (dosync (alter ticket->agnt dissoc tkt)
+                                    (when (= ticket (agnt->ticket agnt))
+                                      (dissoc agnt->ticket agnt)))))
+    tkt))
 
 (defn- close-sinkch [sinkch agnt] (doto sinkch
                                     (m/enqueue (make-event :agent agnt "closed"))
@@ -133,7 +99,7 @@
 (defn long-poll [ticket]
   (logdebug "long-poll" ticket)
   (when-let [agnt (@ticket->agnt ticket)]
-    (when-let [sinkch (px/attach-sink (m/channel) agnt)]
+    (when-let [sinkch (attach-sink (m/channel) agnt)]
       (let [finally #(do (m/close sinkch) %)]
         (if-let [evs (m/channel->seq sinkch)]
           (finally (m/success-result (vec evs)))
@@ -147,7 +113,7 @@
 (defn websocket-events [ticket]
   (fn [ch _]
     (m/ground ch)
-    (doto (->> (px/attach-sink (m/channel) ticket)
+    (doto (->> (attach-sink (m/channel) ticket)
                (m/map* #(spy "Send WebSocket" (af/encode-json->string %))))
       (m/join ch))))
 
