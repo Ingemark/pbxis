@@ -34,10 +34,12 @@
 (def ticket->agnt (ref {}))
 (def agnt->ticket (ref {}))
 (def poll-timeout (atom 30000))
+(defn- unsub-delay [] [15 TimeUnit/SECONDS])
+(defn- agnt-gc-delay [] [60 TimeUnit/MINUTES])
 (def EVENT-BURST-MILLIS 100)
 
 (defn config-agnt [agnt qs]
-  (when-let [close-signal (px/config-agnt agnt qs)]
+  (when-let [eventch (px/event-channel agnt qs)]
     (let [tkt (ticket)
           unsub-result (m/result-channel)
           unsub-fn (fn [] (do (m/enqueue unsub-result ::closed)
@@ -47,6 +49,41 @@
                                                         (logdebug "Unsubscribe" agnt)
                                                         nil)
                                                     %))))]
+      (let [now-state (@agnt-state agnt)]
+        (when now-state
+          (logdebug "Cancel any existing subscription for" agnt)
+          (-?> (now-state :sinkch) (close-sinkch agnt))
+          (-?> (now-state :unsub-fn) call))
+        (if (seq qs)
+          (let [eventch (m/permanent-channel)
+                q-set (set qs)]
+            (if now-state
+              (update-agnt-state agnt assoc :eventch eventch, :unsub-fn unsub-fn)
+              (swap! agnt-state assoc agnt
+                     {:eventch eventch, :unsub-fn unsub-fn
+                      :exten-status (exten-status agnt) :calls (calls-in-progress agnt)}))
+            (when (not= q-set (-?> now-state :amiq-status keys set))
+              (update-agnt-state agnt assoc :amiq-status (agnt-qs-status agnt qs)))
+            (let [st (@agnt-state agnt)]
+              (set-agnt-unsubscriber-schedule agnt true)
+              (reschedule-agnt-gc agnt)
+              (let [enq #(m/enqueue eventch (apply make-event :agent agnt %&))]
+                (enq "extensionStatus" :status (st :exten-status))
+                (enq "phoneNumber" :number (-?> st :calls first val)))
+              (doseq [[amiq status] (st :amiq-status)]
+                (m/enqueue eventch (member-event agnt amiq status)))
+              (doseq [[amiq cnt] (into {} (concat (for [q qs] [q 0]) (select-keys @amiq-cnt qs)))]
+                (m/enqueue eventch (make-event :queue amiq "queueCount" :count cnt))))
+            (m/siphon
+             event-hub
+             (m/siphon->>
+              (m/filter* #(or (= agnt (% :agent)) (q-set (% :queue))))
+              (m/map* (agnt-event-filter agnt))
+              (m/filter* (comp not nil?))
+              eventch))
+            unsub-result)
+          (do (close-permanent (>?> @agnt-state agnt :eventch))
+              (swap! agnt-state dissoc agnt) nil)))
       (dosync
        (alter ticket->agnt dissoc (agnt->ticket agnt))
        (alter ticket->agnt assoc tkt agnt)
@@ -57,41 +94,41 @@
                                         (dissoc agnt->ticket agnt)))))
       tkt)))
 
-(let [now-state (@agnt-state agnt)]
-  (when now-state
-    (logdebug "Cancel any existing subscription for" agnt)
-    (-?> (now-state :sinkch) (close-sinkch agnt))
-    (-?> (now-state :unsub-fn) call))
-  (if (seq qs)
-    (let [eventch (m/permanent-channel)
-          q-set (set qs)]
-      (if now-state
-        (update-agnt-state agnt assoc :eventch eventch, :unsub-fn unsub-fn)
-        (swap! agnt-state assoc agnt
-               {:eventch eventch, :unsub-fn unsub-fn
-                :exten-status (exten-status agnt) :calls (calls-in-progress agnt)}))
-      (when (not= q-set (-?> now-state :amiq-status keys set))
-        (update-agnt-state agnt assoc :amiq-status (agnt-qs-status agnt qs)))
-      (let [st (@agnt-state agnt)]
-        (set-agnt-unsubscriber-schedule agnt true)
-        (reschedule-agnt-gc agnt)
-        (let [enq #(m/enqueue eventch (apply make-event :agent agnt %&))]
-          (enq "extensionStatus" :status (st :exten-status))
-          (enq "phoneNumber" :number (-?> st :calls first val)))
-        (doseq [[amiq status] (st :amiq-status)]
-          (m/enqueue eventch (member-event agnt amiq status)))
-        (doseq [[amiq cnt] (into {} (concat (for [q qs] [q 0]) (select-keys @amiq-cnt qs)))]
-          (m/enqueue eventch (make-event :queue amiq "queueCount" :count cnt))))
-      (m/siphon
-       event-hub
-       (m/siphon->>
-        (m/filter* #(or (= agnt (% :agent)) (q-set (% :queue))))
-        (m/map* (agnt-event-filter agnt))
-        (m/filter* (comp not nil?))
-        eventch))
-      unsub-result)
-    (do (close-permanent (>?> @agnt-state agnt :eventch))
-        (swap! agnt-state dissoc agnt) nil)))
+(defn- close-sinkch [sinkch agnt] (doto sinkch
+                                    (m/enqueue (make-event :agent agnt "closed"))
+                                    (m/close)))
+
+(defn- reschedule-agnt-gc [agnt]
+  (set-schedule agnt-gc agnt (agnt-gc-delay) #(do (logdebug "GC" agnt) (config-agnt agnt []))))
+
+(defn- set-agnt-unsubscriber-schedule [agnt reschedule?]
+  (set-schedule agnt-unsubscriber agnt (when reschedule? (unsub-delay))
+                #(locking lock (-?> (@agnt-state agnt) :unsub-fn call))))
+
+(defn attach-sink
+  "Attaches the supplied lamina channel to the agent's event channel, if present.
+   Closes any existing sink channel. When the sink channel is
+   closed (including an error state), the unsubscribe countdown
+   starts. If a new sink is registered within unsub-delay-seconds, it
+   will resume reception with the event following the last one
+   enqueued into the closed sink."
+  [sinkch agnt]
+  (locking lock
+    (when-let [eventch (and sinkch (>?> @agnt-state agnt :eventch))]
+      (set-schedule agnt-gc agnt nil nil)
+      (update-agnt-state agnt update-in [:sinkch]
+                         #(do (when % (close-sinkch % agnt)) sinkch))
+      (logdebug "Attach sink" agnt)
+      (m/on-closed sinkch
+                   #(locking lock
+                      (logdebug "Closed sink" agnt)
+                      (when [(identical? sinkch (>?> @agnt-state agnt :sinkch))]
+                        (update-agnt-state agnt dissoc :sinkch)
+                        (reschedule-agnt-gc agnt)
+                        (set-agnt-unsubscriber-schedule agnt true))))
+      (m/siphon eventch sinkch)
+      (set-agnt-unsubscriber-schedule agnt false)
+      sinkch)))
 
 (defn long-poll [ticket]
   (logdebug "long-poll" ticket)
