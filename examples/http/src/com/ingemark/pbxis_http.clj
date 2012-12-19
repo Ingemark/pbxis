@@ -1,13 +1,15 @@
 (ns com.ingemark.pbxis-http
-  (require (com.ingemark [pbxis :as px] [logging :refer :all])
+  (require (com.ingemark [pbxis :as px, :refer (>?>)] [logging :refer :all])
            [clojure.java.io :as io] [clojure.string :as s] [clojure.walk :refer (keywordize-keys)]
+           [clojure.core.incubator :refer (-?> dissoc-in)]
            [ring.util.response :as r]
            [net.cgrand.moustache :refer (app)]
            (aleph [http :as ah] [formats :as af])
            [lamina.core :as m]
            (ring.middleware [json-params :refer (wrap-json-params)]
                             [file :refer (wrap-file)]
-                            [file-info :refer (wrap-file-info)])))
+                            [file-info :refer (wrap-file-info)]))
+  (import java.util.concurrent.TimeUnit))
 
 (defn ok [f & args]
   (fn [_] (m/run-pipeline
@@ -47,7 +49,7 @@
                                  (unsub-delay)))]
     (swap! ticket->eventch update-in [tkt :invalidator] #(do (px/cancel-schedule %) newsched))))
 
-(defn event-channel [agnts qs]
+(defn ticket [agnts qs]
   (let [tkt (ticket), eventch (px/event-channel agnts qs)]
     (swap! ticket->eventch assoc-in [tkt :eventch] eventch)
     (set-ticket-invalidator-schedule tkt true)
@@ -56,8 +58,8 @@
 (defn attach-sink
   [sinkch tkt]
   (when-let [eventch (and sinkch (>?> @ticket->eventch tkt :eventch))]
-    (logdebug "Attach sink" agnt)
-    (m/on-closed sinkch #(do (logdebug "Closed sink" agnt)
+    (logdebug "Attach sink" tkt)
+    (m/on-closed sinkch #(do (logdebug "Closed sink" tkt)
                              (set-ticket-invalidator-schedule tkt true)))
     (m/siphon eventch sinkch)
     (set-ticket-invalidator-schedule tkt false)
@@ -66,7 +68,7 @@
 (defn long-poll [ticket]
   (logdebug "long-poll" ticket)
   (when-let [eventch (>?> @ticket->eventch ticket :eventch)]
-    (when-let [sinkch (attach-sink (m/channel) agnt)]
+    (when-let [sinkch (attach-sink (m/channel) ticket)]
       (let [finally #(do (m/close sinkch) %)]
         (if-let [evs (m/channel->seq sinkch)]
           (finally (m/success-result (vec evs)))
@@ -101,10 +103,10 @@
    [&]
    [wrap-json-params
     ["agent" key &]
-    [[] {:post [{:strs [queues]} (ok config-agnt key queues)]}
+    [[] {:post [{:strs [queues]} (ok ticket [key] queues)]}
      ["long-poll"] {:get (ok long-poll key)}
-     ["websocket"] {:get (ah/wrap-aleph-handler (websocket-events (@ticket->agnt key)))}
-     ["sse"] {:get (ok #(doto (m/channel) (attach-sink (@ticket->agnt key))))}
+     ["websocket"] {:get (ah/wrap-aleph-handler (websocket-events key))}
+     ["sse"] {:get (ok #(doto (m/channel) (attach-sink key)))}
      ["originate"] {:post [{:strs [phone]} (ok px/originate-call key phone)]}
      ["queue" action] {:post [{:as params}
                               (ok px/queue-action action key

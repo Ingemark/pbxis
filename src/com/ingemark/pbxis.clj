@@ -43,7 +43,7 @@
 
 (defonce ^:private memory (atom {}))
 
-(defn- >?> [& fs] (reduce #(when %1 (%1 %2)) fs))
+(defn >?> [& fs] (reduce #(when %1 (%1 %2)) fs))
 
 (defn close-permanent [ch]
   (when-let [n (and ch (chan/receiver-node ch))]
