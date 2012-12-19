@@ -1,10 +1,9 @@
 ami-host: 192.168...
-ami-username: 
-ami-password: 
+ami-username:
+ami-password:
 http-port: 58615
 location-prefix: SCCP/
 originate-context: internal
-#originate-timeout-seconds:
-#poll-timeout-seconds:
-#unsub-delay-seconds:
-#agent-gc-delay-minutes:
+#originate-timeout-seconds: 45
+#poll-timeout-seconds: 30
+#unsub-delay-seconds: 15

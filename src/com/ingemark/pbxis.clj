@@ -224,7 +224,8 @@
 
 (defonce ^:private event-hub
   (let [ch (m/channel* :grounded? true :permanent? true :description "Event hub")]
-    (m/splice ch (m/siphon->> (m/filter* pbxis-event-filter) ch))))
+    (m/splice ch (m/siphon->> (m/map* pbxis-event-filter)
+                              (m/filter* #(when-not (nil? %) (spy "PBXIS event" %))) ch))))
 
 (defn- publish [event] (m/enqueue event-hub event))
 
@@ -253,8 +254,8 @@
         (if calls
           (when-let [active-call (first calls)]
             (m/enqueue ch (call-event agnt (key active-call) (-> active-call val :number))))
-          (publish (agnt-event agnt "callsInProgress" (calls-in-progress agnt))))
-        (m/enqueue ch (agnt-event "extensionStatus" :status
+          (publish (agnt-event agnt "callsInProgress" :calls (calls-in-progress agnt))))
+        (m/enqueue ch (agnt-event agnt "extensionStatus" :status
                                   (if-let [{:keys [exten-status]} state]
                                     exten-status (exten-status agnt)))))
       (doseq [[q cnt] (select-keys q-cnt qs)]
@@ -273,16 +274,12 @@
   (loginfo "event-channel" agnts qs)
   (let [q-set (set qs)
         agnt-set (set agnts)
-        emitter (m/permanent-channel)
-        receiver (m/siphon->>
-                  (m/filter* #(or (agnt-set (% :agent)) (q-set (% :queue))))
-                  (m/map* (pbxis-event-filter agnts qs))
-                  (m/filter* (comp not nil?))
-                  emitter)]
+        emitter (m/permanent-channel)]
     (m/on-closed emitter #(decref agnts))
     (incref agnts)
     (send-introductory-events emitter agnts qs)
-    (m/siphon event-hub receiver)
+    (m/siphon (m/filter* #(or (agnt-set (% :agent)) (q-set (% :queue))) event-hub)
+              emitter)
     emitter))
 
 (def ^:private ignored-events

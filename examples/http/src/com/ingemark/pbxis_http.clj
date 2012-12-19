@@ -11,6 +11,10 @@
                             [file-info :refer (wrap-file-info)]))
   (import java.util.concurrent.TimeUnit))
 
+(def poll-timeout (atom 30000))
+(def unsub-delay (atom [15 TimeUnit/SECONDS]))
+(def EVENT-BURST-MILLIS 100)
+
 (defn ok [f & args]
   (fn [_] (m/run-pipeline
            (apply f args)
@@ -35,21 +39,16 @@
 
 (def ticket->eventch (atom {}))
 
-(def poll-timeout (atom 30000))
-(defn- unsub-delay [] [15 TimeUnit/SECONDS])
-(defn- agnt-gc-delay [] [60 TimeUnit/MINUTES])
-(def EVENT-BURST-MILLIS 100)
-
 (defn- set-ticket-invalidator-schedule [tkt reschedule?]
   (let [newsched
         (when reschedule? (apply px/schedule
                                  (fn [] (swap! ticket->eventch
                                                #(do (-?> (% ticket) :eventch px/close-permanent)
                                                     (dissoc % ticket))))
-                                 (unsub-delay)))]
+                                 @unsub-delay))]
     (swap! ticket->eventch update-in [tkt :invalidator] #(do (px/cancel-schedule %) newsched))))
 
-(defn ticket [agnts qs]
+(defn ticket-for [agnts qs]
   (let [tkt (ticket), eventch (px/event-channel agnts qs)]
     (swap! ticket->eventch assoc-in [tkt :eventch] eventch)
     (set-ticket-invalidator-schedule tkt true)
@@ -65,10 +64,10 @@
     (set-ticket-invalidator-schedule tkt false)
     sinkch))
 
-(defn long-poll [ticket]
-  (logdebug "long-poll" ticket)
-  (when-let [eventch (>?> @ticket->eventch ticket :eventch)]
-    (when-let [sinkch (attach-sink (m/channel) ticket)]
+(defn long-poll [tkt]
+  (logdebug "long-poll" tkt)
+  (when-let [eventch (>?> @ticket->eventch tkt :eventch)]
+    (when-let [sinkch (attach-sink (m/channel) tkt)]
       (let [finally #(do (m/close sinkch) %)]
         (if-let [evs (m/channel->seq sinkch)]
           (finally (m/success-result (vec evs)))
@@ -103,7 +102,7 @@
    [&]
    [wrap-json-params
     ["agent" key &]
-    [[] {:post [{:strs [queues]} (ok ticket [key] queues)]}
+    [[] {:post [{:strs [queues]} (ok ticket-for [key] queues)]}
      ["long-poll"] {:get (ok long-poll key)}
      ["websocket"] {:get (ah/wrap-aleph-handler (websocket-events key))}
      ["sse"] {:get (ok #(doto (m/channel) (attach-sink key)))}
@@ -126,11 +125,12 @@
         parse-int #(try (Integer/parseInt ^String %) (catch NumberFormatException _ nil))
         cfg (reduce #(update-in %1 [%2] parse-int) cfg
                     [:http-port :originate-timeout-seconds :poll-timeout-seconds
-                     :unsub-delay-seconds :agent-gc-delay-minutes])
+                     :unsub-delay-seconds])
         cfg (into {} (remove #(nil? (val %)) cfg))
         {:keys [http-port ami-host ami-username ami-password]} cfg
         cfg (dissoc cfg :http-port :ami-host :ami-username :ami-password)]
     (swap! poll-timeout #(if-let [t (cfg :poll-timeout-seconds)] (* 1000 t) %))
+    (swap! unsub-delay #(if-let [d (cfg :unsub-delay-seconds)] [d TimeUnit/SECONDS] %))
     (px/ami-connect ami-host ami-username ami-password cfg)
     (reset! stop-server (ah/start-http-server (-> (var app-main)
                                                   (wrap-file "static-content")

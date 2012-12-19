@@ -21,7 +21,7 @@
 
   <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
-      <pattern>${longpattern}</pattern>
+      <pattern>${shortpattern}</pattern>
     </encoder>
   </appender>
   <appender name="wire" class="ch.qos.logback.core.ConsoleAppender">
@@ -35,7 +35,7 @@
     <appender-ref ref="file"/>
   </root>
   <logger name="com.ingemark" level="ALL"/>
-  <logger name="ami-event" level="INFO"/>
+  <logger name="ami-event" level="ALL"/>
   <logger name="org.asteriskjava.manager.internal.EventBuilderImpl" level="ERROR"/>
   <logger name="org.asteriskjava.manager.internal.ResponseBuilderImpl" level="ERROR"/>
 </configuration>
