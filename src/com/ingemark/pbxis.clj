@@ -152,8 +152,7 @@
 
 (defn- agnt-q-status [agnt q]
   (let [[q-event member-event] (first (q-status q agnt))]
-    (when q-event
-      {:calls (:calls q-event), :status (event->member-status member-event)})))
+    (when q-event {:calls (:calls q-event), :status (event->member-status member-event)})))
 
 (defn- calls-in-progress [& [agnt]]
   (let [r (reduce
@@ -174,11 +173,9 @@
                               (reduce #(assoc-in %1 [(digits (:location %2)) (:queue q-st)]
                                                  (event->member-status %2))
                                       m members))
-                            (into {} (for [agnt (keys @agnt-refcount)]
+                            (into {} (for [agnt (keys @agnt-state)]
                                        [agnt (into {} (for [q qs] [q "loggedoff"]))]))
                             q-status)}))
-
-(defn- publish [event] (m/enqueue event-hub event))
 
 (defn- make-event [target-type target event-type & {:as data}]
   (merge {:type event-type, target-type target} data))
@@ -227,14 +224,18 @@
   (let [ch (m/channel* :grounded? true :permanent? true :description "Event hub")]
     (m/splice ch (m/siphon->> (m/filter* pbxis-event-filter) ch))))
 
-(defn incref [atom keys]
-  (swap! atom (fn [m] (reduce (fn [m k] (update-in m [k :refcount] #(inc (or % 0)))) m keys))))
+(defn- publish [event] (m/enqueue event-hub event))
 
-(defn decref [atom keys]
-  (swap! atom (fn [m] (reduce (fn [m k] (let [curr (:refcount (m k) 0)]
+(defn incref [agnts]
+  (swap! agnt-state (fn [st] (reduce (fn [st agnt] (update-in st [agnt :refcount] #(inc (or % 0))))
+                                     st agnts))))
+
+(defn decref [agnts]
+  (swap! agnt-state (fn [st] (reduce (fn [st agnt] (let [curr (:refcount (st agnt) 0)]
                                           (if (<= curr 1)
-                                            (dissoc m k)
-                                            (assoc-in m [k :refcount] (dec curr)))))))))
+                                            (dissoc st agnt)
+                                            (assoc-in st [agnt :refcount] (dec curr)))))
+                                     st agnts))))
 
 (defn- send-introductory-events [ch agnts qs]
   (locking lock
@@ -276,8 +277,8 @@
                   (m/map* (pbxis-event-filter agnts qs))
                   (m/filter* (comp not nil?))
                   emitter)]
-    (m/on-closed emitter #(decref agnt-refcount agnts))
-    (incref agnt-refcount agnts)
+    (m/on-closed emitter #(decref agnts))
+    (incref agnts)
     (send-introductory-events emitter agnts qs)
     (m/siphon event-hub receiver)
     emitter))
@@ -351,7 +352,7 @@
             pub #(publish (member-event agnt q %))]
         (if (event :paused)
           (pub "paused")
-          (ex/task (pub (>?> (agnt-qs-status agnt [q]) q :status)))))
+          (ex/task (pub (>?> (agnt-q-status agnt q) :status)))))
       nil)))
 
 (defn- actionid [] (<< "pbxis-~(.substring (-> (java.util.UUID/randomUUID) .toString) 0 8)"))
