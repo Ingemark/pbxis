@@ -28,6 +28,7 @@
                      :originate-timeout-seconds 45})
 
 (defn- originate-timeout [] (@config :originate-timeout-seconds))
+(def FORGET-PHONENUM-DELAY [3 TimeUnit/HOURS])
 (def DUE-EVENT-WAIT-SECONDS 5)
 
 (defonce ^:private lock (Object.))
@@ -37,6 +38,8 @@
 (defonce ^:private agnt-state (atom {}))
 
 (defonce ^:private q-cnt (atom {}))
+
+(defonce ^:private agnt-calls (atom {}))
 
 (defonce ^:private memory (atom {}))
 
@@ -86,12 +89,12 @@
    .getEvents
    (mapv event-bean)))
 
-(defn- schedule [task delay unit]
+(defn schedule [task delay unit]
   (m/run-pipeline nil
                   (m/wait-stage (->> delay (.toMillis unit)))
                   (fn [_] (task))))
 
-(defn- cancel [async-result] (when async-result (m/enqueue async-result :cancel)))
+(defn cancel-schedule [async-result] (when async-result (m/enqueue async-result :cancel)))
 
 (defn- remember [k v timeout]
   (swap! memory assoc k v)
@@ -106,22 +109,14 @@
                        (apply update-in % [agnt] f args)
                        %)))
 
-(defn replace-in-agnt-state [agnt path new-val]
+(defn- replace-in-agnt-state [agnt path new-val]
   (let [swapped-in (update-agnt-state agnt update-in path #(if-not (= % new-val) new-val %))]
     (not (identical? new-val (apply >?> swapped-in agnt path)))))
-
-(defn- q-status [q agnt]
-  (->> (send-eventaction (action "QueueStatus" {:member (agnt->location agnt) :queue q}))
-       (reduce (fn [vect ev] (condp = (ev :event-type)
-                               "QueueParams" (conj vect [ev])
-                               "QueueMember" (conj (pop vect) (conj (peek vect) ev))
-                               vect))
-               [])))
 
 (defn- set-schedule [task-atom agnt delay task]
   (let [newsched (when delay
                    (apply schedule #(swap! task-atom dissoc agnt) (task) delay))]
-    (swap! task-atom update-in [agnt] #(do (cancel %) newsched))))
+    (swap! task-atom update-in [agnt] #(do (cancel-schedule %) newsched))))
 
 (def ^:private int->exten-status
   {0 "not_inuse" 1 "inuse" 2 "busy" 4 "unavailable" 8 "ringing" 16 "onhold"})
@@ -146,6 +141,14 @@
 
 (defn- exten-status [agnt] (-> (action "ExtensionState" {:exten agnt :context "hint"})
                                send-action :status int->exten-status))
+
+(defn- q-status [q agnt]
+  (->> (send-eventaction (action "QueueStatus" {:member (agnt->location agnt) :queue q}))
+       (reduce (fn [vect ev] (condp = (ev :event-type)
+                               "QueueParams" (conj vect [ev])
+                               "QueueMember" (conj (pop vect) (conj (peek vect) ev))
+                               vect))
+               [])))
 
 (defn- agnt-q-status [agnt q]
   (let [[q-event member-event] (first (q-status q agnt))]
@@ -196,7 +199,7 @@
     (locking lock
       (condp = (:type e)
         "callsInProgress"
-        (let [curr-calls (-?> (@agnt-state agnt) :calls)]
+        (let [curr-calls (@agnt-calls agnt)]
           (doseq [unique-id (keys (apply dissoc curr-calls (keys (e :calls))))]
             (publish (call-event agnt unique-id nil)))
           (doseq [[unique-id phone-num] (apply dissoc (e :calls) (keys curr-calls))]
@@ -204,21 +207,20 @@
           nil)
         "phoneNumber"
         (let [{:keys [number unique-id]} e
-              forget (fn [] (update-agnt-state
-                             agnt #(do (cancel (>?> % :calls unique-id :forgetter))
-                                       (dissoc-in % [:calls unique-id]))))]
+              forget (fn [] (swap! agnt-calls
+                                   #(do (cancel-schedule (>?> % agnt unique-id :forgetter))
+                                        (dissoc-in % [agnt unique-id]))))]
           (if number
-            (do (schedule forget 3 TimeUnit/HOURS)
-                (update-agnt-state agnt assoc-in [:calls unique-id]
-                                   {:number number :forgetter forget})
+            (do (apply schedule forget FORGET-PHONENUM-DELAY)
+                (swap! agnt-calls assoc-in [unique-id agnt] {:number number :forgetter forget})
                 e)
-            (do (forget) (assoc e :number (-?> (@agnt-state agnt) :calls first val :number)))))
+            (do (forget) (assoc e :number (-?> (@agnt-calls agnt) first val :number)))))
         "extensionStatus"
         (when (replace-in-agnt-state agnt [:exten-status] (String. (e :status))) e)
         "queueMemberStatus"
         (when (replace-in-agnt-state agnt [:member-status (e :queue)] (String. (e :status))) e)
         "queueCount"
-        (do (swap! q-cnt assoc q newcnt) e)
+        (do (swap! q-cnt assoc q (e :count)) e)
         e))))
 
 (defonce ^:private event-hub
@@ -236,17 +238,18 @@
 
 (defn- send-introductory-events [ch agnts qs]
   (locking lock
-    (let [agnt-state @agnt-state, q-cnt @q-cnt, q-set (set qs)]
+    (let [agnt-state @agnt-state, q-cnt @q-cnt, agnt-calls @agnt-calls, q-set (set qs)]
       (doseq [agnt agnts, :let [state (agnt-state agnt)
+                                calls (agnt-calls agnt)
                                 member-status (:member-status state)]]
         (doseq [[q status] (select-keys member-status qs)]
           (m/enqueue ch (member-event agnt q status)))
         (doseq [q (apply disj q-set (keys member-status))
                 :let [{:keys [status]} (agnt-q-status agnt q)], :when status]
           (publish (member-event agnt q status)))
-        (if-let [{:keys [calls]} state]
-          (when-let [active-call (-?> state :calls first)]
-            (m/enqueue ch (apply call-event agnt active-call)))
+        (if calls
+          (when-let [active-call (first calls)]
+            (m/enqueue ch (call-event agnt (key active-call) (-> active-call val :number))))
           (publish (agnt-event agnt "callsInProgress" (calls-in-progress agnt))))
         (m/enqueue ch (agnt-event "extensionStatus" :status
                                   (if-let [{:keys [exten-status]} state]
@@ -301,7 +304,7 @@
 (defn- refresh-all-state []
   (let [{:keys [agnt-q-status q-cnt]} (full-agnt-q-status)
         calls-in-progress (calls-in-progress)]
-    (doseq [[agnt q-status] agnt-qstatus, [q status] q-status]
+    (doseq [[agnt q-status] agnt-q-status, [q status] q-status]
       (publish (member-event agnt q status)))
     (doseq [[q cnt] q-cnt] (publish (qcount-event {:queue q :count cnt})))
     (doseq [[agnt calls] calls-in-progress]

@@ -31,74 +31,41 @@
 
 (defn ticket [] (-> (java.util.UUID/randomUUID) .toString))
 
-(def ticket->agnt (ref {}))
-(def agnt->ticket (ref {}))
+(def ticket->eventch (atom {}))
+
 (def poll-timeout (atom 30000))
 (defn- unsub-delay [] [15 TimeUnit/SECONDS])
 (defn- agnt-gc-delay [] [60 TimeUnit/MINUTES])
 (def EVENT-BURST-MILLIS 100)
 
-(defn config-agnt [agnt qs]
-  (let [eventch (px/event-channel agnt qs)
-        tkt (ticket)]
-    (let [now-state (@agnt-state agnt)]
-      (if (seq qs)
-        (do
-          (when now-state (swap! agnt-state assoc agnt {:eventch eventch}))
-          (let [st (@agnt-state agnt)]
-            (set-agnt-unsubscriber-schedule agnt true)
-            (reschedule-agnt-gc agnt))
-          unsub-result)
-        (do (close-permanent (>?> @agnt-state agnt :eventch)))))
-    (dosync
-     (alter ticket->agnt dissoc (agnt->ticket agnt))
-     (alter ticket->agnt assoc tkt agnt)
-     (alter agnt->ticket assoc agnt tkt))
-    (m/run-pipeline close-signal
-                    (fn [_] (dosync (alter ticket->agnt dissoc tkt)
-                                    (when (= ticket (agnt->ticket agnt))
-                                      (dissoc agnt->ticket agnt)))))
+(defn- set-ticket-invalidator-schedule [tkt reschedule?]
+  (let [newsched
+        (when reschedule? (apply px/schedule
+                                 (fn [] (swap! ticket->eventch
+                                               #(do (-?> (% ticket) :eventch px/close-permanent)
+                                                    (dissoc % ticket))))
+                                 (unsub-delay)))]
+    (swap! ticket->eventch update-in [tkt :invalidator] #(do (px/cancel-schedule %) newsched))))
+
+(defn event-channel [agnts qs]
+  (let [tkt (ticket), eventch (px/event-channel agnts qs)]
+    (swap! ticket->eventch assoc-in [tkt :eventch] eventch)
+    (set-ticket-invalidator-schedule tkt true)
     tkt))
 
-(defn- close-sinkch [sinkch agnt] (doto sinkch
-                                    (m/enqueue (make-event :agent agnt "closed"))
-                                    (m/close)))
-
-(defn- reschedule-agnt-gc [agnt]
-  (set-schedule agnt-gc agnt (agnt-gc-delay) #(do (logdebug "GC" agnt) (config-agnt agnt []))))
-
-(defn- set-agnt-unsubscriber-schedule [agnt reschedule?]
-  (set-schedule agnt-unsubscriber agnt (when reschedule? (unsub-delay))
-                #(locking lock (-?> (@agnt-state agnt) :unsub-fn call))))
-
 (defn attach-sink
-  "Attaches the supplied lamina channel to the agent's event channel, if present.
-   Closes any existing sink channel. When the sink channel is
-   closed (including an error state), the unsubscribe countdown
-   starts. If a new sink is registered within unsub-delay-seconds, it
-   will resume reception with the event following the last one
-   enqueued into the closed sink."
-  [sinkch agnt]
-  (locking lock
-    (when-let [eventch (and sinkch (>?> @agnt-state agnt :eventch))]
-      (set-schedule agnt-gc agnt nil nil)
-      (update-agnt-state agnt update-in [:sinkch]
-                         #(do (when % (close-sinkch % agnt)) sinkch))
-      (logdebug "Attach sink" agnt)
-      (m/on-closed sinkch
-                   #(locking lock
-                      (logdebug "Closed sink" agnt)
-                      (when [(identical? sinkch (>?> @agnt-state agnt :sinkch))]
-                        (update-agnt-state agnt dissoc :sinkch)
-                        (reschedule-agnt-gc agnt)
-                        (set-agnt-unsubscriber-schedule agnt true))))
-      (m/siphon eventch sinkch)
-      (set-agnt-unsubscriber-schedule agnt false)
-      sinkch)))
+  [sinkch tkt]
+  (when-let [eventch (and sinkch (>?> @ticket->eventch tkt :eventch))]
+    (logdebug "Attach sink" agnt)
+    (m/on-closed sinkch #(do (logdebug "Closed sink" agnt)
+                             (set-ticket-invalidator-schedule tkt true)))
+    (m/siphon eventch sinkch)
+    (set-ticket-invalidator-schedule tkt false)
+    sinkch))
 
 (defn long-poll [ticket]
   (logdebug "long-poll" ticket)
-  (when-let [agnt (@ticket->agnt ticket)]
+  (when-let [eventch (>?> @ticket->eventch ticket :eventch)]
     (when-let [sinkch (attach-sink (m/channel) agnt)]
       (let [finally #(do (m/close sinkch) %)]
         (if-let [evs (m/channel->seq sinkch)]
@@ -137,7 +104,7 @@
     [[] {:post [{:strs [queues]} (ok config-agnt key queues)]}
      ["long-poll"] {:get (ok long-poll key)}
      ["websocket"] {:get (ah/wrap-aleph-handler (websocket-events (@ticket->agnt key)))}
-     ["sse"] {:get (ok #(doto (m/channel) (px/attach-sink (@ticket->agnt key))))}
+     ["sse"] {:get (ok #(doto (m/channel) (attach-sink (@ticket->agnt key))))}
      ["originate"] {:post [{:strs [phone]} (ok px/originate-call key phone)]}
      ["queue" action] {:post [{:as params}
                               (ok px/queue-action action key
