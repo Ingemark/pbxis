@@ -191,6 +191,8 @@
 (defn- qcount-event [ami-event]
   (make-event :queue (ami-event :queue) "queueCount" :count (ami-event :count)))
 
+(declare ^clojure.lang.IFn publish)
+
 (defn- pbxis-event-filter [e]
   (let [agnt (e :agent), q (e :queue)]
     (locking lock
