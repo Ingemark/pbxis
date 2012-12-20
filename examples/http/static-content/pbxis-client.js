@@ -14,7 +14,7 @@ function handle_event(e) {
         pbx_extension_status(e.status);
         break;
     case "queueCount":
-        pbx_queue_count(e.queue, e.status);
+        pbx_queue_count(e.queue, e.count);
         break;
     case "phoneNumber":
         pbx_phone_num(e.number);

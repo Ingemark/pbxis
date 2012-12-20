@@ -9,7 +9,6 @@ type="text/javascript"></script>
 <script type="text/javascript" src="/pbxis-client.js"></script>
 <script type="text/javascript" src="$pbxis-adapter.js$"></script>
 <script type="text/javascript">
-  var my_q = 'q1'
   function pbx_connection(is_connected) {
     $('#connection').html(is_connected? "connected" : "disconnected");
     if (!is_connected)
@@ -17,18 +16,18 @@ type="text/javascript"></script>
       function(_,id) { $('#'+id).html('---'); })
   }
   function pbx_agent_status(queue, status) {
-    if (queue == my_q) $('#agent_status').html(status);
+    $('#agent_status').html(queue + ": " + status);
   }
   function pbx_extension_status(status) {
     $('#ext_status').html(status);
   }
   function pbx_queue_count(queue, count) {
-    if (queue == my_q) $('#queue_count').html(count)
+    $('#queue_count').html(queue + ": " + count)
   }
   function pbx_phone_num(num) {
     $('#phone_num').html(num);
   }
-  $(function() { pbx_connection(false); pbx_start("$agnt$", [my_q, 'q2']);})
+  $(function() { pbx_connection(false); pbx_start("$agnt$", [$queues$]);})
 </script>
 <body>
 <table border="1px">

@@ -35,6 +35,8 @@
 
 (defonce ^:private ami-connection (atom nil))
 
+(defonce ^:private event-hub (atom nil))
+
 (defonce ^:private agnt-state (atom {}))
 
 (defonce ^:private q-cnt (atom {}))
@@ -44,6 +46,8 @@
 (defonce ^:private memory (atom {}))
 
 (defn >?> [& fs] (reduce #(when %1 (%1 %2)) fs))
+
+(defn to-millis [^Long t ^TimeUnit unit] (.toMillis unit t))
 
 (defn close-permanent [ch]
   (when-let [n (and ch (chan/receiver-node ch))]
@@ -74,7 +78,7 @@
     a))
 
 (defn- send-action [a & [timeout]]
-  (let [r (spy "Action response"
+  (let [r (spy 'ami-event "Action response"
                (->> (-> (if timeout
                           (.sendAction @ami-connection a timeout)
                           (.sendAction @ami-connection a))
@@ -85,14 +89,14 @@
 
 (defn- send-eventaction [a]
   (->>
-   (doto (.sendEventGeneratingAction @ami-connection a) (-> .getResponse logdebug))
+   (doto (.sendEventGeneratingAction @ami-connection a)
+     (-> .getResponse (#(logdebug 'ami-event "Manager response"
+                                  (.getResponse %) "|" (.getMessage %)))))
    .getEvents
    (mapv event-bean)))
 
 (defn schedule [task delay unit]
-  (m/run-pipeline nil
-                  (m/wait-stage (->> delay (.toMillis unit)))
-                  (fn [_] (task))))
+  (m/run-pipeline nil (m/wait-stage (to-millis delay unit)) (fn [_] (task))))
 
 (defn cancel-schedule [async-result] (when async-result (m/enqueue async-result :cancel)))
 
@@ -111,7 +115,7 @@
 
 (defn- replace-in-agnt-state [agnt path new-val]
   (let [swapped-in (update-agnt-state agnt update-in path #(if-not (= % new-val) new-val %))]
-    (not (identical? new-val (apply >?> swapped-in agnt path)))))
+    (identical? new-val (apply >?> swapped-in agnt path))))
 
 (defn- set-schedule [task-atom agnt delay task]
   (let [newsched (when delay
@@ -210,9 +214,10 @@
                                    #(do (cancel-schedule (>?> % agnt unique-id :forgetter))
                                         (dissoc-in % [agnt unique-id]))))]
           (if number
-            (do (apply schedule forget FORGET-PHONENUM-DELAY)
-                (swap! agnt-calls assoc-in [unique-id agnt] {:number number :forgetter forget})
-                e)
+            (when (@agnt-state agnt)
+              (apply schedule forget FORGET-PHONENUM-DELAY)
+              (swap! agnt-calls assoc-in [unique-id agnt] {:number number :forgetter forget})
+              e)
             (do (forget) (assoc e :number (-?> (@agnt-calls agnt) first val :number)))))
         "extensionStatus"
         (when (replace-in-agnt-state agnt [:exten-status] (String. (e :status))) e)
@@ -222,12 +227,13 @@
         (do (swap! q-cnt assoc q (e :count)) e)
         e))))
 
-(defonce ^:private event-hub
+(defn- new-event-hub []
   (let [ch (m/channel* :grounded? true :permanent? true :description "Event hub")]
-    (m/splice ch (m/siphon->> (m/map* pbxis-event-filter)
-                              (m/filter* #(when-not (nil? %) (spy "PBXIS event" %))) ch))))
+    (m/splice ch
+              (m/siphon->> (m/map* pbxis-event-filter)
+                           (m/filter* #(when-not (nil? %) (spy "PBXIS event" %))) ch))))
 
-(defn- publish [event] (m/enqueue event-hub event))
+(defn- publish [event] (m/enqueue @event-hub event))
 
 (defn incref [agnts]
   (swap! agnt-state (fn [st] (reduce (fn [st agnt] (update-in st [agnt :refcount] #(inc (or % 0))))
@@ -256,8 +262,7 @@
             (m/enqueue ch (call-event agnt (key active-call) (-> active-call val :number))))
           (publish (agnt-event agnt "callsInProgress" :calls (calls-in-progress agnt))))
         (m/enqueue ch (agnt-event agnt "extensionStatus" :status
-                                  (if-let [{:keys [exten-status]} state]
-                                    exten-status (exten-status agnt)))))
+                                  (or (:exten-status state) (exten-status agnt)))))
       (doseq [[q cnt] (select-keys q-cnt qs)]
         (publish (make-event :queue q "queueCount" :count cnt)))
       (doseq [q (apply disj q-set (keys q-cnt))
@@ -277,9 +282,15 @@
         emitter (m/permanent-channel)]
     (m/on-closed emitter #(decref agnts))
     (incref agnts)
-    (send-introductory-events emitter agnts qs)
-    (m/siphon (m/filter* #(or (agnt-set (% :agent)) (q-set (% :queue))) event-hub)
+    (m/siphon (m/filter*
+               #(let [{:keys [type agent queue]} %]
+                  (if (= type "closed")
+                    (do (close-permanent emitter) true)
+                    (and (or (nil? agent) (agnt-set agent))
+                         (or (nil? queue) (q-set queue)))))
+               @event-hub)
               emitter)
+    (send-introductory-events emitter agnts qs)
     emitter))
 
 (def ^:private ignored-events
@@ -421,20 +432,14 @@ applies to all except \"remove\", and \"memberName\" applies only to
        Typically the default context is called \"default\".
 
      :originate-timeout-seconds -- time to wait for the called party to
-       answer the phone.
-
-     :unsub-delay-seconds -- how long to keep accumulating events into
-       the event channel while no consumers are attached.
-
-     :agent-gc-delay-minutes -- grace period within which to keep
-       tracking the state of an agent after he was automatically
-       unsubscribed due to client inactivity (long-poll not getting
-       called within unsub-delay-seconds).  Some state cannot be
-       regenerated later, such as the phone number of the party called
-       by originate-call."
+       answer the phone."
   [host username password cfg]
   (locking ami-connection
-    (reset! config (spy "PBXIS config" (merge default-config cfg)))
+    (reset! config (spy "PBXIS config"
+                        (merge default-config
+                               (select-keys cfg [:location-prefix :originate-context
+                                                 :originate-timeout-seconds]))))
+    (reset! event-hub (new-event-hub))
     (let [c (reset! ami-connection
                     (-> (ManagerConnectionFactory. host username password)
                         .createManagerConnection))]
@@ -445,4 +450,7 @@ applies to all except \"remove\", and \"memberName\" applies only to
   []
   (locking ami-connection
     (when-let [c @ami-connection] (reset! ami-connection nil) (.logoff c))
-    (doseq [a [q-cnt agnt-state memory]] (reset! a {}))))
+    (m/enqueue @event-hub {:type "closed"})
+    (close-permanent @event-hub)
+    (reset! event-hub nil)
+    (doseq [a [q-cnt agnt-state agnt-calls memory]] (reset! a {}))))

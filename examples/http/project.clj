@@ -5,7 +5,7 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [org.clojure/core.incubator "0.1.2"]
-                 [com.ingemark/pbxis "0.4.3-SNAPSHOT"]
+                 [com.ingemark/pbxis "0.5.0-SNAPSHOT"]
                  [net.cgrand/moustache "1.1.0"]
                  [ring/ring-core "1.1.0" :exclusions [javax.servlet/servlet-api]]
                  [ring-json-params/ring-json-params "0.1.3"]
