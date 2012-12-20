@@ -279,19 +279,20 @@
   (loginfo "event-channel" agnts qs)
   (let [q-set (set qs)
         agnt-set (set agnts)
-        emitter (m/permanent-channel)]
-    (m/on-closed emitter #(decref agnts))
+        eventch (m/permanent-channel)
+        propagate-close #(close-permanent eventch)]
+    (m/on-closed @event-hub propagate-close)
+    (m/on-closed eventch #(do (m/cancel-callback @event-hub propagate-close)
+                              (decref agnts)))
     (incref agnts)
     (m/siphon (m/filter*
-               #(let [{:keys [type agent queue]} %]
-                  (if (= type "closed")
-                    (do (close-permanent emitter) true)
-                    (and (or (nil? agent) (agnt-set agent))
-                         (or (nil? queue) (q-set queue)))))
+               #(let [{:keys [agent queue]} %]
+                  (and (or (nil? agent) (agnt-set agent))
+                       (or (nil? queue) (q-set queue))))
                @event-hub)
-              emitter)
-    (send-introductory-events emitter agnts qs)
-    emitter))
+              eventch)
+    (send-introductory-events eventch agnts qs)
+    eventch))
 
 (def ^:private ignored-events
   #{"VarSet" "NewState" "NewChannel" "NewExten" "NewCallerId" "NewAccountCode" "ChannelUpdate"
@@ -446,7 +447,8 @@ applies to all except \"remove\", and \"memberName\" applies only to
       (doto c (.addEventListener ami-listener) .login))))
 
 (defn ami-disconnect
-  "Disconnects from the AMI and releases all resources."
+  "Disconnects from the AMI and releases all resources. Publishes a PBXIS event
+of type \"closed\" before closing the event hub."
   []
   (locking ami-connection
     (when-let [c @ami-connection] (reset! ami-connection nil) (.logoff c))

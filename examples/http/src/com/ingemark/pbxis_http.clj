@@ -69,7 +69,7 @@
                              (set-ticket-invalidator-schedule tkt true)))
     (m/siphon eventch sinkch)
     (set-ticket-invalidator-schedule tkt false)
-    (m/filter* #(spy "Outgoing" %) sinkch)))
+    sinkch))
 
 (defn- sse-channel [tkt]
   (let [sinkch (m/channel)]
@@ -105,8 +105,8 @@
 (defn stop []
   (loginfo "Shutting down")
   (future
-    (when @stop-server @(@stop-server) (reset! stop-server nil))
-    (px/ami-disconnect))
+    (px/ami-disconnect)
+    (when @stop-server @(@stop-server) (reset! stop-server nil)))
   "pbxis service shutting down")
 
 (def app-main
