@@ -212,13 +212,15 @@
         (let [{:keys [number unique-id]} e
               forget (fn [] (swap! agnt-calls
                                    #(do (cancel-schedule (>?> % agnt unique-id :forgetter))
-                                        (dissoc-in % [agnt unique-id]))))]
-          (if number
-            (when (@agnt-state agnt)
-              (apply schedule forget FORGET-PHONENUM-DELAY)
-              (swap! agnt-calls assoc-in [unique-id agnt] {:number number :forgetter forget})
-              e)
-            (do (forget) (assoc e :number (-?> (@agnt-calls agnt) first val :number)))))
+                                        (dissoc-in % [agnt unique-id]))))
+              e (if number
+                  (do (when (@agnt-state agnt)
+                        (apply schedule forget FORGET-PHONENUM-DELAY)
+                        (swap! agnt-calls assoc-in [unique-id agnt]
+                               {:number number :forgetter forget}))
+                      e)
+                  (do (forget) (assoc e :number (-?> (@agnt-calls agnt) first val :number))))]
+          (when (replace-in-agnt-state agnt [:phone-number] (String. (or (e :number) ""))) e))
         "extensionStatus"
         (when (replace-in-agnt-state agnt [:exten-status] (String. (e :status))) e)
         "queueMemberStatus"
