@@ -29,14 +29,16 @@
                                      r)}
                ((if (nil? r) r/not-found r/response) (af/encode-json->string r)))))))
 
-(defn- html [type agnt qs]
+(defn- html [type agnts qs]
   (fn [_] (-> (str "client.html") slurp
               (s/replace "$pbxis-adapter.js$" (str "/pbxis-" type ".js"))
-              (s/replace "$agnt$" agnt)
-              (s/replace "$queues$" (s/join "," (map #(str \' % \') qs)))
+              (s/replace "$ag1$" (first agnts))
+              (s/replace "$ag2$" (second agnts))
+              (s/replace "$q1$" (first qs))
+              (s/replace "$q2$" (second qs))
               r/response (r/content-type "text/html") (r/charset "UTF-8"))))
 
-(defn- ticket [] (-> (java.util.UUID/randomUUID) .toString))
+(defn- ticket [] (spy "New ticket" (-> (java.util.UUID/randomUUID) .toString)))
 
 (def ticket->eventch (atom {}))
 
@@ -51,8 +53,7 @@
           (logdebug "Schedule invalidator" tkt)
           (apply px/schedule #(invalidate-ticket tkt) @unsub-delay))]
     (swap! ticket->eventch update-in [tkt :invalidator]
-           #(do (logdebug "Cancel invalidator" tkt)
-                (px/cancel-schedule %)
+           #(do (when % (logdebug "Cancel invalidator" tkt) (px/cancel-schedule %))
                 newsched))))
 
 (defn- ticket-for [agnts qs]
@@ -60,7 +61,7 @@
     (swap! ticket->eventch assoc-in [tkt :eventch] eventch)
     (m/on-closed eventch #(swap! ticket->eventch dissoc tkt))
     (set-ticket-invalidator-schedule tkt true)
-    (spy "New ticket" tkt)))
+    tkt))
 
 (defn- attach-sink [sinkch tkt]
   (when-let [eventch (and sinkch (>?> @ticket->eventch tkt :eventch))]
@@ -109,26 +110,28 @@
     (when @stop-server @(@stop-server) (reset! stop-server nil)))
   "pbxis service shutting down")
 
+(defn- split [s] (s/split s #","))
+
 (def app-main
   (app
-   ["client" type agnt qs] {:get (html type agnt (s/split qs #","))}
+   ["client" type [agnts split] [qs split]] {:get (html type agnts qs)}
+   ["stop"] {:post (ok stop)}
    [&]
    [wrap-json-params
-    ["agent" key &]
-    [[] {:post [{:strs [queues]} (ok ticket-for [key] queues)]}
-     ["long-poll"] {:get (ok long-poll key)}
-     ["websocket"] {:get (ah/wrap-aleph-handler (websocket-events key))}
-     ["sse"] {:get (ok #(sse-channel key))}
-     ["originate"] {:post [{:strs [phone]} (ok px/originate-call key phone)]}
+    ["ticket"] {:post [{:strs [agents queues]} (ok ticket-for agents queues)]}
+    [ticket &]
+    [["long-poll"] {:get (ok long-poll ticket)}
+     ["websocket"] {:get (ah/wrap-aleph-handler (websocket-events ticket))}
+     ["sse"] {:get (ok #(sse-channel ticket))}
+     ["originate"] {:post [{:strs [phone]} (ok px/originate-call ticket phone)]}
      ["queue" action] {:post [{:as params}
-                              (ok px/queue-action action key
+                              (ok px/queue-action action ticket
                                   (select-keys params
                                                (into ["queue"]
                                                      (condp = action
                                                        "add" ["memberName" "paused"]
                                                        "pause" ["paused"]
-                                                       "remove" []))))]}]]
-   ["stop"] {:post (ok stop)}))
+                                                       "remove" []))))]}]]))
 
 (defn main []
   (System/setProperty "logback.configurationFile" "logback.xml")

@@ -8,16 +8,16 @@ function handle_event(e) {
     console.log("Handling event " + JSON.stringify(e));
     switch (e.type) {
     case "queueMemberStatus":
-        pbx_agent_status(e.queue, e.status);
+        pbx_agent_status(e.agent, e.queue, e.status);
         break;
     case "extensionStatus":
-        pbx_extension_status(e.status);
+        pbx_extension_status(e.agent, e.status);
         break;
     case "queueCount":
         pbx_queue_count(e.queue, e.count);
         break;
     case "phoneNumber":
-        pbx_phone_num(e.number);
+        pbx_phone_num(e.agent, e.number);
         break;
     case "closed":
         pbx_connection(false);

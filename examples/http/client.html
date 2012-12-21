@@ -12,32 +12,49 @@ type="text/javascript"></script>
   function pbx_connection(is_connected) {
     $('#connection').html(is_connected? "connected" : "disconnected");
     if (!is_connected)
-      $.each(['agent_status','ext_status','queue_count', 'phone_num'],
+      $.each(['$ag1$_$q1$_agent_status','$ag1$_$q2$_agent_status',
+              '$ag2$_$q1$_agent_status','$ag2$_$q2$_agent_status',
+              '$ag1$_ext_status','$ag2$_ext_status',
+              '$ag1$_phone_num','$ag2$_phone_num',
+              '$q1$_queue_count','$q2$_queue_count'],
       function(_,id) { $('#'+id).html('---'); })
   }
-  function pbx_agent_status(queue, status) {
-    $('#agent_status').html(queue + ": " + status);
+  function pbx_agent_status(agent, queue, status) {
+    $('#' + agent + '_' + queue + '_agent_status').html(status);
   }
-  function pbx_extension_status(status) {
-    $('#ext_status').html(status);
+  function pbx_extension_status(agent, status) {
+    $('#' + agent + '_ext_status').html(status);
   }
   function pbx_queue_count(queue, count) {
-    $('#queue_count').html(queue + ": " + count)
+    $('#' + queue + '_queue_count').html(count)
   }
-  function pbx_phone_num(num) {
-    $('#phone_num').html(num);
+  function pbx_phone_num(agent, num) {
+    $('#' + agent + '_phone_num').html(num);
   }
-  $(function() { pbx_connection(false); pbx_start("$agnt$", [$queues$]);})
+  $(function() { pbx_connection(false); pbx_start(['$ag1$', '$ag2$'], ['$q1$', '$q2$']);})
 </script>
 <body>
-<table border="1px">
-  <tr><td align="right">Connection</td><td><span id="connection">disconnected</span></td></tr>
-  <tr><td align="right">Extension status</td><td><span id="ext_status"></span></td></tr>
-  <tr><td align="right">Agent status</td><td><span id="agent_status"></span></td></tr>
-  <tr><td align="right">Queue count</td><td><span id="queue_count"></span></td></tr>
-  <tr><td align="right">Phone number</td><td><span id="phone_num"></span></td></tr>
-</table>
 
+<h3>Connection: <span id="connection">disconnected</span></h3>
+
+<p>Calls wating on Queue $q1$: <span id="$q1$_queue_count">---</span></p>
+<p>Calls wating on Queue $q2$: <span id="$q2$_queue_count">---</span></p>
+
+<table>
+<tr><th>Agent $ag1$</th><th>Agent $ag2$</th></tr>
+<tr><td><table border="1px">
+  <tr><td align="right">Extension status</td><td><span id="$ag1$_ext_status"></span></td></tr>
+  <tr><td align="right">Phone number</td><td><span id="$ag1$_phone_num"></span></td></tr>
+  <tr><td align="right">Status in queue $q1$</td><td><span id="$ag1$_$q1$_agent_status"></span></td></tr>
+  <tr><td align="right">Status in queue $q2$</td><td><span id="$ag1$_$q2$_agent_status"></span></td></tr>
+</table></td>
+<td><table border="1px">
+  <tr><td align="right">Extension status</td><td><span id="$ag2$_ext_status"></span></td></tr>
+  <tr><td align="right">Phone number</td><td><span id="$ag2$_phone_num"></span></td></tr>
+  <tr><td align="right">Status in queue $q1$</td><td><span id="$ag2$_$q1$_agent_status"></span></td></tr>
+  <tr><td align="right">Status in queue $q2$</td><td><span id="$ag2$_$q2$_agent_status"></span></td></tr>
+</table></td>
+</tr></table>
 
 <hr>
 </body> </html>
