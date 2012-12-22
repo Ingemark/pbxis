@@ -3,11 +3,13 @@
            [clojure.core.strint :refer (<<)]
            [hiccup [core :as h] [element :as e] [page :as p]]))
 
-(defn- ids [agnts qs]
-  (s/join "," (concat (for [ag agnts, q qs] (<< "'~{ag}_~{q}_agent_status'")),
-                      (for [ag agnts] (<< "'~{ag}_ext_status'")),
-                      (for [ag agnts] (<< "'~{ag}_phone_num'")),
+(defn- texts [agnts qs]
+  (s/join "," (concat (for [ag agnts, q qs] (<< "'~{ag}_~{q}_agent_status'"))
+                      (for [ag agnts] (<< "'~{ag}_phone_num'"))
                       (for [q qs] (<< "'~{q}_queue_count'")))))
+
+(defn- ext-statuses [agnts]
+  (s/join "," (for [ag agnts] (<< "'~{ag}_ext_status'"))))
 
 (defn homepage [type agnts qs]
   (->
@@ -22,14 +24,19 @@
     (e/javascript-tag (<< "
   function pbx_connection(is_connected) {
     $('#connection').html(is_connected? 'Connected' : 'Disconnected');
-    if (!is_connected)
-      $.each([~(ids agnts qs)], function(_,id) { $('#'+id).html('---'); })
+    if (!is_connected) {
+      $.each([~(texts agnts qs)], function(_,id) { $('#'+id).html('---');})
+      $.each([~(ext-statuses agnts)], function(_,id) {
+         $('#'+id).attr('src', '/img/not_inuse.png');
+      })
+    }
   }
   function pbx_agent_status(agent, queue, status) {
     $('#' + agent + '_' + queue + '_agent_status').html(status);
   }
   function pbx_extension_status(agent, status) {
-    $('#' + agent + '_ext_status').html(status);
+    if (!status) status = 'not_inuse';
+    $('#' + agent + '_ext_status').attr('src', '/img/'+status+'.png');
   }
   function pbx_queue_count(queue, count) {
     $('#' + queue + '_queue_count').html(count)
@@ -68,7 +75,7 @@
                 [:td
                  [:table {:border "1px"}
                   [:tr [:td {:align "right"} "Extension status"]
-                   [:td [:span {:id (<< "~{ag}_ext_status")}]]]
+                   [:td [:img {:id (<< "~{ag}_ext_status")}]]]
                   [:tr [:td {:align "right"} "Phone number"]
                    [:td [:span {:id (<< "~{ag}_phone_num")}]]]
                   (for [q qs]
