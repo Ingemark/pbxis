@@ -98,6 +98,7 @@
   (loginfo "Shutting down")
   (future
     (px/ami-disconnect)
+    (Thread/sleep 500)
     (when @stop-server @(@stop-server) (reset! stop-server nil)))
   "pbxis service shutting down")
 
