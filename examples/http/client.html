@@ -10,7 +10,7 @@ type="text/javascript"></script>
 <script type="text/javascript" src="$pbxis-adapter.js$"></script>
 <script type="text/javascript">
   function pbx_connection(is_connected) {
-    $('#connection').html(is_connected? "connected" : "disconnected");
+    $('#connection').html(is_connected? 'connected' : 'disconnected');
     if (!is_connected)
       $.each(['$ag1$_$q1$_agent_status','$ag1$_$q2$_agent_status',
               '$ag2$_$q1$_agent_status','$ag2$_$q2$_agent_status',

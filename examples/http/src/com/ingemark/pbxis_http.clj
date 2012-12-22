@@ -1,5 +1,6 @@
 (ns com.ingemark.pbxis-http
   (require (com.ingemark [pbxis :as px, :refer (>?>)] [logging :refer :all])
+           [com.ingemark.pbxis-http.homepage :refer :all]
            [clojure.java.io :as io] [clojure.string :as s] [clojure.walk :refer (keywordize-keys)]
            [clojure.core.incubator :refer (-?> dissoc-in)]
            [ring.util.response :as r]
@@ -20,23 +21,13 @@
            (apply f args)
            (fn [r]
              (if (m/channel? r)
-               {:status 200
-                :headers {"Content-Type" "text/event-stream"}
-                :body (m/map* #(do (logdebug "Send SSE" %)
-                                   (str "event: " (:type %) "\n"
-                                        "data: " (af/encode-json->string (dissoc % :type)) "\n"
-                                        "\n"))
-                                     r)}
-               ((if (nil? r) r/not-found r/response) (af/encode-json->string r)))))))
-
-(defn- html [type agnts qs]
-  (fn [_] (-> (str "client.html") slurp
-              (s/replace "$pbxis-adapter.js$" (str "/pbxis-" type ".js"))
-              (s/replace "$ag1$" (first agnts))
-              (s/replace "$ag2$" (second agnts))
-              (s/replace "$q1$" (first qs))
-              (s/replace "$q2$" (second qs))
-              r/response (r/content-type "text/html") (r/charset "UTF-8"))))
+              {:status 200, :headers {"Content-Type" "text/event-stream"}
+               :body (m/map* #(do (logdebug "Send SSE" %)
+                                  (str "event: " (:type %) "\n"
+                                       "data: " (af/encode-json->string (dissoc % :type)) "\n"
+                                       "\n"))
+                             r)}
+              ((if (nil? r) r/not-found r/response) (af/encode-json->string r)))))))
 
 (defn- ticket [] (spy "New ticket" (-> (java.util.UUID/randomUUID) .toString)))
 
@@ -114,24 +105,24 @@
 
 (def app-main
   (app
-   ["client" type [agnts split] [qs split]] {:get (html type agnts qs)}
+   ["client" type [agnts split] [qs split]] {:get (fn [_] (homepage type agnts qs))}
    ["stop"] {:post (ok stop)}
    [&]
    [wrap-json-params
     ["ticket"] {:post [{:strs [agents queues]} (ok ticket-for agents queues)]}
+    ["originate" src dest] {:post (ok px/originate-call src dest)}
+    ["queue" action agnt] {:post [{:as params}
+                                  (ok px/queue-action action agnt
+                                      (select-keys params
+                                                   (into ["queue"]
+                                                         (condp = action
+                                                           "add" ["memberName" "paused"]
+                                                           "pause" ["paused"]
+                                                           "remove" []))))]}
     [ticket &]
     [["long-poll"] {:get (ok long-poll ticket)}
      ["websocket"] {:get (ah/wrap-aleph-handler (websocket-events ticket))}
-     ["sse"] {:get (ok #(sse-channel ticket))}
-     ["originate"] {:post [{:strs [phone]} (ok px/originate-call ticket phone)]}
-     ["queue" action] {:post [{:as params}
-                              (ok px/queue-action action ticket
-                                  (select-keys params
-                                               (into ["queue"]
-                                                     (condp = action
-                                                       "add" ["memberName" "paused"]
-                                                       "pause" ["paused"]
-                                                       "remove" []))))]}]]))
+     ["sse"] {:get (ok #(sse-channel ticket))}]]))
 
 (defn main []
   (System/setProperty "logback.configurationFile" "logback.xml")

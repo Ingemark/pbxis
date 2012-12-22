@@ -7,6 +7,7 @@
                  [org.clojure/core.incubator "0.1.2"]
                  [com.ingemark/pbxis "0.5.0-SNAPSHOT"]
                  [net.cgrand/moustache "1.1.0"]
+                 [hiccup "1.0.2"]
                  [ring/ring-core "1.1.0" :exclusions [javax.servlet/servlet-api]]
                  [ring-json-params/ring-json-params "0.1.3"]
                  [aleph "0.3.0-beta8"]
