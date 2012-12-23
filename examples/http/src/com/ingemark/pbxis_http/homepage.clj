@@ -32,11 +32,15 @@
     }
   }
   function pbx_agent_status(agent, queue, status) {
-    $('#' + agent + '_' + queue + '_agent_status').html(status);
+    if (!status) status = 'loggedoff';
+    $('#' + agent + '_' + queue + '_agent_status').attr('src', '/img/'+status+'.png');
   }
   function pbx_extension_status(agent, status) {
     if (!status) status = 'not_inuse';
     $('#' + agent + '_ext_status').attr('src', '/img/'+status+'.png');
+  }
+  function pbx_agent_name(agent, name) {
+    $('#' + agent + '_name').html(name + ' (' + agent + ')')
   }
   function pbx_queue_count(queue, count) {
     $('#' + queue + '_queue_count').html(count)
@@ -44,8 +48,30 @@
   function pbx_phone_num(agent, num) {
     $('#' + agent + '_phone_num').html(num);
   }
+  function queue_action(action) {
+    var agent = $('#agent').val();
+    var queue = $('#queue').val();
+    $.ajax({
+        type: 'POST',
+        url: '/queue/'+action+'/'+agent,
+        data: JSON.stringify(
+           {queue: queue,
+            paused: $('#'+agent+'_'+queue+'_agent_status').attr('src').indexOf('paused') === -1}),
+        contentType: 'application/json; charset=utf-8',
+        dataType: 'json'
+      });
+  }
   $(function() {
     pbx_connection(false);
+    $('#log-on').click(function() {
+       queue_action('add');
+    });
+    $('#pause').click(function() {
+       queue_action('pause');
+    });
+    $('#log-off').click(function() {
+       queue_action('remove');
+    });
     $('#originate').submit(function() {
       $.ajax({
         type: 'POST',
@@ -67,19 +93,25 @@
       [:label {:for "src"}] [:input {:id "src"}]
       [:label {:for "dest"} "--->"] [:input {:id "dest"}]
       [:input {:type "submit" :value "Call!"}]]
+     [:form {:id "queueaction" :onsubmit "return false;"}
+      [:label {:for "agent"}] [:input {:id "agent"}]
+      [:label {:for "queue"} "/"] [:input {:id "queue"}]
+      [:img {:id "log-on" :src "/img/loggedon.png"}]
+      [:img {:id "pause" :src "/img/paused.png"}]
+      [:img {:id "log-off" :src "/img/loggedoff.png"}]]
      [:table
       (for [agrow (partition-all 4 agnts)]
         (list
-         [:tr (for [ag agrow] [:th (<< "Agent ~{ag}")])]
+         [:tr (for [ag agrow] [:th {:id (<< "~{ag}_name")} (<< "Agent ~{ag}")])]
          [:tr (for [ag agrow]
                 [:td
                  [:table {:border "1px"}
-                  [:tr [:td {:align "right"} "Extension status"]
+                  [:tr [:td {:align "right"} "Extension"]
                    [:td [:img {:id (<< "~{ag}_ext_status")}]]]
-                  [:tr [:td {:align "right"} "Phone number"]
+                  [:tr [:td {:align "right"} "Number"]
                    [:td [:span {:id (<< "~{ag}_phone_num")}]]]
                   (for [q qs]
-                    [:tr [:td {:align "right"} (<< "Status in queue ~{q}")]
-                     [:td [:span {:id (<< "~{ag}_~{q}_agent_status")}]]])]])]))]])
+                    [:tr [:td {:align "right"} q]
+                     [:td [:img {:id (<< "~{ag}_~{q}_agent_status")}]]])]])]))]])
    r/response (r/content-type "text/html") (r/charset "UTF-8")))
 

@@ -8,7 +8,7 @@ function pbx_start(agents, queues) {
             dataType: "json",
             success: function(ticket) {
                 var socket = new WebSocket(
-                    "ws" + document.location.origin.substring(4) + ticket+"/websocket");
+                    "ws" + document.location.origin.substring(4) + "/" + ticket + "/websocket");
                 socket.onopen = function() { pbx_connection(true); }
                 socket.onclose = function() { console.log("Websocket closed");
                                               pbx_connection(false); }

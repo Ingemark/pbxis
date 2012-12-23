@@ -108,6 +108,9 @@
   (app
    ["client" type [agnts split] [qs split]] {:get (fn [_] (homepage type agnts qs))}
    ["stop"] {:post (ok stop)}
+   [ticket "long-poll"] {:get (ok long-poll ticket)}
+   [ticket "websocket"] {:get (ah/wrap-aleph-handler (websocket-events ticket))}
+   [ticket "sse"] {:get (ok #(sse-channel ticket))}
    [&]
    [wrap-json-params
     ["ticket"] {:post [{:strs [agents queues]} (ok ticket-for agents queues)]}
@@ -119,11 +122,7 @@
                                                          (condp = action
                                                            "add" ["memberName" "paused"]
                                                            "pause" ["paused"]
-                                                           "remove" []))))]}
-    [ticket &]
-    [["long-poll"] {:get (ok long-poll ticket)}
-     ["websocket"] {:get (ah/wrap-aleph-handler (websocket-events ticket))}
-     ["sse"] {:get (ok #(sse-channel ticket))}]]))
+                                                           "remove" []))))]}]))
 
 (defn main []
   (System/setProperty "logback.configurationFile" "logback.xml")
