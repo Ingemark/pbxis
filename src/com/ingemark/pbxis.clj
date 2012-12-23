@@ -196,8 +196,8 @@
 
 (defn- name-event [agnt name] (when name (make-event :agent agnt "agentName" :name name)))
 
-(defn- call-event [agnt unique-id phone-num]
-  (agnt-event (digits agnt) "phoneNumber" :unique-id unique-id :number phone-num))
+(defn- call-event [agnt unique-id phone-num & [name]]
+  (agnt-event (digits agnt) "phoneNumber" :unique-id unique-id :number phone-num :name name))
 
 (defn- qcount-event [q cnt] (make-event :queue q "queueCount" :count cnt))
 
@@ -348,7 +348,8 @@
       (when (= (event :subEvent) "Begin")
         (publish (call-event (event :channel) (event :srcUniqueId) (-> event :dialString digits)))
         (publish (call-event (event :destination) (event :destUniqueId)
-                             (or (recall (event :srcUniqueId)) (event :callerIdNum)))))
+                             (or (recall (event :srcUniqueId)) (event :callerIdNum))
+                             (event :callerIdName))))
       #"Hangup"
       (publish (call-event (event :channel) unique-id nil))
       #"AgentCalled"
