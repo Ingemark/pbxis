@@ -18,6 +18,7 @@
     [:head
      [:title "PBXIS"]
      [:meta {:http-equiv "Content-Type" :content "text/html; charset=UTF-8"}]]
+    (p/include-css "/style.css")
     (p/include-js
      "http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"
      "/pbxis-client.js" (<< "/pbxis-~{type}.js"))
@@ -45,8 +46,8 @@
   function pbx_queue_count(queue, count) {
     $('#' + queue + '_queue_count').html(count)
   }
-  function pbx_phone_num(agent, num) {
-    $('#' + agent + '_phone_num').html(num);
+  function pbx_phone_num(agent, num, name) {
+    $('#' + agent + '_phone_num').html(num + (name? ' (' + name + ')' : ''));
   }
   function queue_action(action) {
     var agent = $('#agent').val();
@@ -108,7 +109,7 @@
                  [:table {:border "1px"}
                   [:tr [:td {:align "right"} "Extension"]
                    [:td [:img {:id (<< "~{ag}_ext_status")}]]]
-                  [:tr [:td {:align "right"} "Number"]
+                  [:tr [:td {:align "right"} "Party"]
                    [:td [:span {:id (<< "~{ag}_phone_num")}]]]
                   (for [q qs]
                     [:tr [:td {:align "right"} q]

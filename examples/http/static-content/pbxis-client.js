@@ -21,7 +21,7 @@ function handle_event(e) {
         pbx_queue_count(e.queue, e.count);
         break;
     case "phoneNumber":
-        pbx_phone_num(e.agent, e.number);
+        pbx_phone_num(e.agent, e.number, e.name);
         break;
     case "closed":
         pbx_connection(false);
