@@ -47,7 +47,7 @@
     $('#' + queue + '_queue_count').html(count)
   }
   function pbx_phone_num(agent, num, name) {
-    $('#' + agent + '_phone_num').html(num + (name? ' (' + name + ')' : ''));
+    $('#' + agent + '_phone_num').html((num || '') + (name? ' (' + name + ')' : ''));
   }
   function queue_action(action) {
     var agent = $('#agent').val();
