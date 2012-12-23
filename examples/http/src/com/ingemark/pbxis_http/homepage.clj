@@ -21,71 +21,24 @@
     (p/include-css "/style.css")
     (p/include-js
      "http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"
-     "/pbxis-client.js" (<< "/pbxis-~{type}.js"))
+     "/pbxis-client.js" (<< "/pbxis-~{type}.js") "/homepage.js")
     (e/javascript-tag (<< "
-  function pbx_connection(is_connected) {
-    $('#connection').html(is_connected? 'Connected' : 'Disconnected');
-    if (!is_connected) {
-      $.each([~(texts agnts qs)], function(_,id) { $('#'+id).html('---');})
-      $.each([~(ext-statuses agnts)], function(_,id) {
-         $('#'+id).attr('src', '/img/not_inuse.png');
-      })
-    }
-  }
-  function pbx_agent_status(agent, queue, status) {
-    if (!status) status = 'loggedoff';
-    $('#' + agent + '_' + queue + '_agent_status').attr('src', '/img/'+status+'.png');
-  }
-  function pbx_extension_status(agent, status) {
-    if (!status) status = 'not_inuse';
-    $('#' + agent + '_ext_status').attr('src', '/img/'+status+'.png');
-  }
-  function pbx_agent_name(agent, name) {
-    $('#' + agent + '_name').html(name + ' (' + agent + ')')
-  }
-  function pbx_queue_count(queue, count) {
-    $('#' + queue + '_queue_count').html(count)
-  }
-  function pbx_phone_num(agent, num, name) {
-    $('#' + agent + '_phone_num').html((num || '') + (name? ' (' + name + ')' : ''));
-  }
-  function queue_action(action) {
-    var agent = $('#agent').val();
-    var queue = $('#queue').val();
-    $.ajax({
-        type: 'POST',
-        url: '/queue/'+action+'/'+agent,
-        data: JSON.stringify(
-           {queue: queue,
-            paused: $('#'+agent+'_'+queue+'_agent_status').attr('src').indexOf('paused') === -1}),
-        contentType: 'application/json; charset=utf-8',
-        dataType: 'json'
-      });
-  }
-  $(function() {
-    pbx_connection(false);
-    $('#log-on').click(function() {
-       queue_action('add');
-    });
-    $('#pause').click(function() {
-       queue_action('pause');
-    });
-    $('#log-off').click(function() {
-       queue_action('remove');
-    });
-    $('#originate').submit(function() {
-      $.ajax({
-        type: 'POST',
-        url: '/originate/'+$('#src').val()+'/'+$('#dest').val(),
-        contentType: 'application/json; charset=utf-8',
-        dataType: 'json'
-      });
-    });
-    pbx_start(
-       [~(s/join \",\" (for [ag agnts] (str \\' ag \\')))],
-       [~(s/join \",\" (for [q qs] (str \\' q \\')))]);
-  })
-"))
+      function pbx_connection(is_connected) {
+        $('#connection').html(is_connected? 'Connected' : 'Disconnected');
+        if (!is_connected) {
+          $.each([~(texts agnts qs)], function(_,id) {
+             $('#'+id).html('---');
+          });
+          $.each([~(ext-statuses agnts)], function(_,id) {
+             $('#'+id).attr('src', '/img/not_inuse.png');
+          });
+        }
+      }
+      $(function() {
+        pbx_start(
+          [~(s/join \",\" (for [ag agnts] (str \\' ag \\')))],
+          [~(s/join \",\" (for [q qs] (str \\' q \\')))]);
+      });"))
     [:body
      [:h3 [:span {:id "connection"} "Disconnected"]]
      (for [q qs]
@@ -100,12 +53,12 @@
       [:img {:id "log-on" :src "/img/loggedon.png"}]
       [:img {:id "pause" :src "/img/paused.png"}]
       [:img {:id "log-off" :src "/img/loggedoff.png"}]]
-     [:table
+     [:table.outer
       (for [agrow (partition-all 4 agnts)]
         (list
-         [:tr (for [ag agrow] [:th {:id (<< "~{ag}_name")} (<< "Agent ~{ag}")])]
+         [:tr.outer (for [ag agrow] [:th.outer {:id (<< "~{ag}_name")} (<< "Agent ~{ag}")])]
          [:tr (for [ag agrow]
-                [:td
+                [:td.outer
                  [:table {:border "1px"}
                   [:tr [:td {:align "right"} "Extension"]
                    [:td [:img {:id (<< "~{ag}_ext_status")}]]]
