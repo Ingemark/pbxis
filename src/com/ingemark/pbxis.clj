@@ -215,15 +215,15 @@
             (publish (call-event agnt unique-id phone-num)))
           nil)
         "phoneNumber"
-        (let [{:keys [number unique-id]} e
+        (let [{:keys [unique-id number name]} e
               forget (fn [] (swap! agnt-calls
                                    #(do (cancel-schedule (>?> % agnt unique-id :forgetter))
                                         (dissoc-in % [agnt unique-id]))))
               e (if number
                   (do (when (@agnt-state agnt)
-                        (apply schedule forget FORGET-PHONENUM-DELAY)
-                        (swap! agnt-calls assoc-in [unique-id agnt]
-                               {:number number :forgetter forget}))
+                        (swap! agnt-calls assoc-in [agnt unique-id]
+                               {:number number, :name name
+                                :forgetter (apply schedule forget FORGET-PHONENUM-DELAY)}))
                       e)
                   (do (forget) (assoc e :number (-?> (@agnt-calls agnt) first val :number))))]
           (when (replace-in-agnt-state agnt [:phone-number] (String. (or (e :number) ""))) e))
@@ -262,7 +262,7 @@
   (locking lock
     (let [agnt-state @agnt-state, q-cnt @q-cnt, agnt-calls @agnt-calls, q-set (set qs)]
       (doseq [agnt agnts, :let [state (agnt-state agnt)
-                                calls (agnt-calls agnt)
+                                calls (spy "agnt-calls" (agnt-calls agnt))
                                 member-status (:member-status state)]]
         (enq ch (name-event agnt (state :name)))
         (doseq [[q status] (select-keys member-status qs)]
@@ -273,7 +273,8 @@
           (publish (member-event agnt q status)))
         (if calls
           (when-let [active-call (first calls)]
-            (enq ch (call-event agnt (key active-call) (-> active-call val :number))))
+            (enq ch (call-event agnt (key active-call) (-> active-call val :number)
+                                (-> active-call val :name))))
           (publish (agnt-event agnt "callsInProgress" :calls (calls-in-progress agnt))))
         (enq ch (agnt-event agnt "extensionStatus" :status
                                   (or (:exten-status state) (exten-status agnt)))))
