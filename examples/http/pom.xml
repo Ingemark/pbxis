@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?><project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.ingemark</groupId>
-  <artifactId>pbxis-http-longpoll</artifactId>
+  <artifactId>pbxis-http</artifactId>
   <packaging>jar</packaging>
   <version>0.1.0-SNAPSHOT</version>
-  <name>pbxis-http-longpoll</name>
-  <description>Asterisk Call Center Async Adapter</description>
+  <name>pbxis-http</name>
+  <description>Asterisk Call Center HTTP Adapter</description>
   <url>http://www.inge-mark.hr</url>
   <licenses>
     <license>
@@ -13,12 +13,6 @@
       <url>http://www.eclipse.org/legal/epl-v10.html</url>
     </license>
   </licenses>
-  <scm>
-    <connection>scm:git:git://github.com/Inge-mark/pbxis-http-longpoll.git</connection>
-    <developerConnection>scm:git:ssh://git@github.com/Inge-mark/pbxis-http-longpoll.git</developerConnection>
-    <tag>ba1a40a2150dbed7e1336135f935546c0d53c9b5</tag>
-    <url>https://github.com/Inge-mark/pbxis-http-longpoll</url>
-  </scm>
   <build>
     <sourceDirectory>src</sourceDirectory>
     <testSourceDirectory>test</testSourceDirectory>
@@ -72,29 +66,19 @@
       <version>0.1.2</version>
     </dependency>
     <dependency>
-      <groupId>org.clojure</groupId>
-      <artifactId>data.json</artifactId>
-      <version>0.1.3</version>
-    </dependency>
-    <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-api</artifactId>
-      <version>1.6.1</version>
-    </dependency>
-    <dependency>
-      <groupId>ch.qos.logback</groupId>
-      <artifactId>logback-classic</artifactId>
-      <version>1.0.7</version>
-    </dependency>
-    <dependency>
       <groupId>com.ingemark</groupId>
       <artifactId>pbxis</artifactId>
-      <version>0.3.0-SNAPSHOT</version>
+      <version>0.5.0-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>net.cgrand</groupId>
       <artifactId>moustache</artifactId>
       <version>1.1.0</version>
+    </dependency>
+    <dependency>
+      <groupId>hiccup</groupId>
+      <artifactId>hiccup</artifactId>
+      <version>1.0.2</version>
     </dependency>
     <dependency>
       <groupId>ring</groupId>
@@ -115,7 +99,17 @@
     <dependency>
       <groupId>aleph</groupId>
       <artifactId>aleph</artifactId>
-      <version>0.3.0-beta6</version>
+      <version>0.3.0-beta8</version>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>1.6.1</version>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>1.0.7</version>
     </dependency>
   </dependencies>
 </project>
