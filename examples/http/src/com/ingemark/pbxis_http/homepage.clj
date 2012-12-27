@@ -41,8 +41,6 @@
       });"))
     [:body
      [:h3 [:span {:id "connection"} "Disconnected"]]
-     (for [q qs]
-       [:p (<< "Calls waiting on Queue ~{q}: ") [:span {:id (<< "~{q}_queue_count")} "---"]])
      [:form {:id "originate" :onsubmit "return false;"}
       [:label {:for "src"}] [:input {:id "src"}]
       [:label {:for "dest"} "--->"] [:input {:id "dest"}]
@@ -53,6 +51,8 @@
       [:img {:id "log-on" :src "/img/loggedon.png"}]
       [:img {:id "pause" :src "/img/paused.png"}]
       [:img {:id "log-off" :src "/img/loggedoff.png"}]]
+     (for [q qs]
+       [:p (<< "Queue ~{q}: ") [:span {:id (<< "~{q}_queue_count")} "---"]])
      [:table.outer
       (for [agrow (partition-all 4 agnts)]
         (list
