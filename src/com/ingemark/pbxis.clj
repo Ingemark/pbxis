@@ -24,11 +24,11 @@
 (defonce config (atom {}))
 
 (def default-config {:location-prefix "SCCP/"
-                     :originate-context "default"
-                     :originate-timeout-seconds 45})
+                     :originate-context "default"})
 
 (def FORGET-PHONENUM-DELAY [3 TimeUnit/HOURS])
-(def DUE-EVENT-WAIT-SECONDS 5)
+(def ^:const DUE-EVENT-WAIT-SECONDS 5)
+(def ^:const ORIGINATE-CALL-TIMEOUT-SECONDS 180)
 
 (defonce ^:private lock (Object.))
 
@@ -52,6 +52,20 @@
   (when-let [n (and ch (chan/receiver-node ch))]
     (node/set-state! n ^NodeState (node/state n) :permanent? false)
     (m/close ch)))
+
+(defn leech [src dest]
+  (let [enq-dest #(m/enqueue dest %)]
+    (m/receive-all src enq-dest)
+    (m/on-closed src #(m/close dest))
+    (m/on-closed dest #(m/cancel-callback src enq-dest))
+    dest))
+
+(defn async-stage [src]
+  (let [dest (m/channel)]
+    (m/receive-all src (m/pipeline #(m/enqueue dest %)))
+    (m/on-closed src #(m/close dest))
+    (m/on-closed dest #(m/close src))
+    dest))
 
 (defn invoke [^String m o & args]
   (clojure.lang.Reflector/invokeInstanceMethod o m (into-array Object args)))
@@ -100,10 +114,13 @@
 (defn cancel-schedule [async-result] (when async-result (m/enqueue async-result :cancel)))
 
 (defn- remember [k v timeout]
+  (logdebug "remember" k v)
   (swap! memory assoc k v)
-  (schedule #(swap! memory dissoc k) timeout TimeUnit/SECONDS))
+  (schedule #(swap! memory dissoc k) timeout TimeUnit/SECONDS)
+  nil)
 
-(defn- recall [k] (when-let [v (@memory k)] (swap! memory dissoc k) v))
+(defn- recall [k]
+  (spy "recall" k (when-let [v (@memory k)] (swap! memory dissoc k) v)))
 
 (defn- agnt->location [agnt] (when agnt (str (@config :location-prefix) agnt)))
 
@@ -190,10 +207,10 @@
 (defn- agnt-event [agnt type & data] (apply make-event :agent agnt type data))
 
 (defn- member-event [agnt q status]
-  (when status
-    (make-event :agent agnt "queueMemberStatus" :queue q :status status)))
+  (when status (make-event :agent agnt "queueMemberStatus" :queue q :status status)))
 
-(defn- name-event [agnt name] (when name (make-event :agent agnt "agentName" :name name)))
+(defn- name-event [agnt name]
+  (when name (make-event :agent (digits agnt) "agentName" :name name)))
 
 (defn- call-event [agnt unique-id phone-num & [name]]
   (agnt-event (digits agnt) "phoneNumber" :unique-id unique-id :number phone-num :name name))
@@ -236,12 +253,6 @@
         (do (swap! q-cnt assoc q (e :count)) e)
         e))))
 
-(defn- new-event-hub []
-  (let [ch (m/channel* :grounded? true :permanent? true :description "Event hub")]
-    (m/splice ch
-              (m/siphon->> (m/map* pbxis-event-filter)
-                           (m/filter* #(when-not (nil? %) (spy "PBXIS event" %))) ch))))
-
 (defn- enq [ch event] (when event (m/enqueue ch event)))
 
 (defn- publish [event] (enq @event-hub event))
@@ -261,9 +272,9 @@
   (locking lock
     (let [agnt-state @agnt-state, q-cnt @q-cnt, agnt-calls @agnt-calls, q-set (set qs)]
       (doseq [agnt agnts, :let [state (agnt-state agnt)
-                                calls (spy "agnt-calls" (agnt-calls agnt))
+                                calls (agnt-calls agnt)
                                 member-status (:member-status state)]]
-        (enq ch (name-event agnt (state :name)))
+        (enq ch (name-event agnt (:name state)))
         (doseq [[q status] (select-keys member-status qs)]
           (enq ch (member-event agnt q status)))
         (doseq [q (apply disj q-set (keys member-status))
@@ -291,20 +302,15 @@
    qs: a collection of agent queue names."
   [agnts qs]
   (loginfo "event-channel" agnts qs)
-  (let [q-set (set qs)
-        agnt-set (set agnts)
-        eventch (m/permanent-channel)
-        propagate-close #(close-permanent eventch)]
-    (m/on-closed @event-hub propagate-close)
-    (m/on-closed eventch #(do (m/cancel-callback @event-hub propagate-close)
-                              (decref agnts)))
+  (let [q-set (set qs), agnt-set (set agnts), eventch (m/channel)]
+    (m/on-closed eventch #(decref agnts))
     (incref agnts)
-    (m/siphon (m/filter*
-               #(let [{:keys [agent queue]} %]
-                  (and (or (nil? agent) (agnt-set agent))
-                       (or (nil? queue) (q-set queue))))
-               @event-hub)
-              eventch)
+    (leech (m/filter*
+            #(let [{:keys [agent queue]} %]
+               (and (or (nil? agent) (agnt-set agent))
+                    (or (nil? queue) (q-set queue))))
+            @event-hub)
+           eventch)
     (send-introductory-events eventch agnts qs)
     eventch))
 
@@ -314,74 +320,94 @@
 
 (def ^:private activating-eventfilter (atom nil))
 
-(defn- ensure-ami-event-filter [event t]
-  (if (ignored-events t)
-    (when-not (-?>> event :privilege (re-find #"agent|call"))
-      (let [tru (Object.)
-            activating (swap! activating-eventfilter #(or % tru))]
-        (when (= activating tru)
-          (ex/task (try
-                     (send-action
-                      (spy (<< "Received unfiltered event ~{t}, privilege ~(event :privilege).")
-                           "Sending" (action "Events" {:eventMask "agent,call"})))
-                     (finally (reset! activating-eventfilter nil)))))))
-    (logdebug 'ami-event "AMI event\n" t (dissoc event :event-type :privilege))))
+(defn- ensure-ami-event-filter [ami-ev]
+  (let [t (:event-type ami-ev)]
+    (if (ignored-events t)
+      (when-not (-?>> ami-ev :privilege (re-find #"agent|call"))
+        (let [tru (Object.), activating (swap! activating-eventfilter #(or % tru))]
+          (when (= activating tru)
+            (ex/task
+             (try (send-action
+                   (spy (<< "Received unfiltered ami-ev ~{t}, privilege ~(ami-ev :privilege).")
+                        "Sending" (action "Events" {:eventMask "agent,call"})))
+                  (finally (reset! activating-eventfilter nil)))))))
+      (logdebug 'ami-event "AMI event\n" t (dissoc ami-ev :event-type :privilege)))))
 
 (defn- refresh-all-state []
   (let [{:keys [agnt-q-status q-cnt]} (full-agnt-q-status)
         calls-in-progress (calls-in-progress)]
-    (doseq [[agnt q-status] agnt-q-status, [k v] q-status]
-      (publish (if (= k :name) (name-event agnt v) (member-event agnt k v))))
-    (doseq [[q cnt] q-cnt] (publish (qcount-event q cnt)))
-    (doseq [[agnt calls] calls-in-progress]
-      (publish (agnt-event agnt "callsInProgress" calls)))))
+    (for [[agnt q-status] agnt-q-status, [k v] q-status]
+      (if (= k :name) (name-event agnt v) (member-event agnt k v)))
+    (for [[q cnt] q-cnt] (qcount-event q cnt))
+    (for [[agnt calls] calls-in-progress] (agnt-event agnt "callsInProgress" :calls calls))))
 
-(defn- handle-ami-event [event]
-  (let [t (:event-type event), unique-id (:uniqueId event)]
-    (ensure-ami-event-filter event t)
+(defn- ami->pbxis [ami-ev]
+  (let [t (:event-type ami-ev), unique-id (:uniqueId ami-ev)]
     (condp re-matches t
       #"Connect"
       (ex/task (refresh-all-state))
       #"Join|Leave"
-      (publish (qcount-event (:queue event) (:count event)))
+      (qcount-event (:queue ami-ev) (:count ami-ev))
       #"Dial"
-      (when (= (event :subEvent) "Begin")
-        (publish (call-event (event :channel) (event :srcUniqueId) (-> event :dialString digits)))
-        (publish (call-event (event :destination) (event :destUniqueId)
-                             (or (recall (event :srcUniqueId)) (event :callerIdNum))
-                             (event :callerIdName))))
+      (when (= (ami-ev :subEvent) "Begin")
+        [(let [amich (ami-ev :channel)]
+           (when-not (.startsWith amich "Local")
+             (call-event amich (ami-ev :srcUniqueId) (-> ami-ev :dialString digits))))
+         (call-event (ami-ev :destination) (ami-ev :destUniqueId)
+                     (or (recall (ami-ev :srcUniqueId)) (ami-ev :callerIdNum))
+                     (ami-ev :callerIdName))])
       #"Hangup"
-      (publish (call-event (event :channel) unique-id nil))
+      (call-event (ami-ev :channel) unique-id nil)
       #"AgentCalled"
-      (publish (call-event (event :agentCalled) unique-id (event :callerIdNum)))
+      (call-event (ami-ev :agentCalled) unique-id (ami-ev :callerIdNum))
       #"AgentComplete"
-      (publish (agnt-event
-                (event :member) "agentComplete"
-                :uniqueId unique-id :talkTime (event :talkTime) :holdTime (event :holdTime)
-                :recording (-?> event :variables (.get "FILEPATH"))))
+      (agnt-event
+       (ami-ev :member) "agentComplete"
+       :uniqueId unique-id :talkTime (ami-ev :talkTime) :holdTime (ami-ev :holdTime)
+       :recording (-?> ami-ev :variables (.get "FILEPATH")))
       #"OriginateResponse"
-      (let [action-id (event :actionId)]
-        (if (= (event :response) "Success")
+      (let [action-id (ami-ev :actionId)]
+        (if (= (ami-ev :response) "Success")
           (remember unique-id (recall action-id) DUE-EVENT-WAIT-SECONDS)
-          (publish (agnt-event (event :exten) "originateFailed" :actionId action-id))))
+          (agnt-event (ami-ev :exten) "originateFailed" :actionId action-id)))
       #"ExtensionStatus"
-      (publish (agnt-event (digits (event :exten)) "extensionStatus"
-                           :status (int->exten-status (event :status))))
+      (agnt-event (digits (ami-ev :exten)) "extensionStatus"
+                  :status (int->exten-status (ami-ev :status)))
       #"QueueMemberStatus"
-      (let [agnt (event :location)]
-        (publish (member-event (digits agnt) (event :queue)
-                               (event->member-status event)))
-        (publish (name-event agnt (event :memberName))))
+      (let [agnt (ami-ev :location)]
+        [(member-event (digits agnt) (ami-ev :queue)
+                       (event->member-status ami-ev))
+         (name-event agnt (ami-ev :memberName))])
       #"QueueMember(Add|Remov)ed" :>>
-      #(publish (member-event (digits (event :location)) (event :queue)
-                              (if (= (% 1) "Add") (event->member-status event) "loggedoff")))
+      #(let [agnt (ami-ev :location)]
+         [(member-event (digits agnt) (ami-ev :queue)
+                        (if (= (% 1) "Add") (event->member-status ami-ev) "loggedoff"))
+          (name-event agnt (ami-ev :memberName))])
       #"QueueMemberPaused"
-      (let [agnt (digits (event :location)), q (event :queue)
-            pub #(publish (member-event agnt q %))]
-        (if (event :paused)
-          (pub "paused")
-          (ex/task (pub (>?> (agnt-q-status agnt q) :status)))))
+      (let [agnt (digits (ami-ev :location)), q (ami-ev :queue)
+            member-ev #(member-event agnt q %)]
+        (if (ami-ev :paused)
+          (member-ev "paused")
+          (ex/task (member-ev (>?> (agnt-q-status agnt q) :status)))))
       nil)))
+
+(defn- new-ami-channel []
+  (let [ch (m/channel)
+        amich (m/splice ch (m/siphon->> (m/map* event-bean) ch))]
+    (m/receive-all amich ensure-ami-event-filter)
+    amich))
+
+(defn- new-event-hub [amich]
+  (let [ch (m/channel)]
+    (m/siphon (->> amich
+                   (m/map* ami->pbxis)
+                   async-stage
+                   (m/map* #(if (map? %) [%] %))
+                   m/concat*
+                   (m/remove* nil?))
+              ch)
+    (doto (m/splice (->> ch (m/map* pbxis-event-filter) (m/remove* nil?)) ch)
+      (m/receive-all #(logdebug "PBXIS event" %)))))
 
 (defn- actionid [] (<< "pbxis-~(.substring (-> (java.util.UUID/randomUUID) .toString) 0 8)"))
 
@@ -397,18 +423,17 @@
 In the case of a successful call, only a an phoneNumber event will be
 received."
   [agnt phone]
+  (logdebug "originate" agnt phone)
   (let [actionid (actionid)
-        context (@config :originate-context)
-        tmout (originate-timeout)]
+        context (@config :originate-context)]
     (when (send-action (action "Originate"
                                {:context context
                                 :exten agnt
                                 :channel (str "Local/" phone "@" context)
                                 :actionId actionid
                                 :priority (int 1)
-                                :async true})
-                       tmout)
-      (remember actionid phone (+ tmout DUE-EVENT-WAIT-SECONDS))
+                                :async true}))
+      (remember actionid phone ORIGINATE-CALL-TIMEOUT-SECONDS)
       actionid)))
 
 (defn queue-action
@@ -430,9 +455,16 @@ applies to all except \"remove\", and \"memberName\" applies only to
   (send-action (action (<< "Queue~(upcase-first type)")
                        (assoc params :interface (agnt->location agnt)))))
 
-(def ami-listener
-  (reify ManagerEventListener
-    (onManagerEvent [_ event] (handle-ami-event (event-bean event)))))
+(defn ami-disconnect [amich]
+  "Disconnects from the AMI and releases all resources. Publishes a PBXIS event
+of type \"closed\" before closing the event hub."
+  []
+  (locking lock
+    (when @ami-connection (.logoff @ami-connection) (reset! ami-connection nil))
+    (publish {:type "closed"})
+    (m/close amich)
+    (reset! event-hub nil)
+    (doseq [a [q-cnt agnt-state agnt-calls memory]] (reset! a {}))))
 
 (defn ami-connect
   "Connects to the AMI back-end and performs all other initialization
@@ -448,28 +480,19 @@ applies to all except \"remove\", and \"memberName\" applies only to
 
      :originate-context -- dialplan context used for call origination.
        Typically the default context is called \"default\".
-
-     :originate-timeout-seconds -- time to wait for the called party to
-       answer the phone."
+"
   [host username password cfg]
-  (locking ami-connection
+  (locking lock
     (reset! config (spy "PBXIS config"
                         (merge default-config
-                               (select-keys cfg [:location-prefix :originate-context
-                                                 :originate-timeout-seconds]))))
-    (reset! event-hub (new-event-hub))
-    (let [c (reset! ami-connection
-                    (-> (ManagerConnectionFactory. host username password)
-                        .createManagerConnection))]
-      (doto c (.addEventListener ami-listener) .login))))
-
-(defn ami-disconnect
-  "Disconnects from the AMI and releases all resources. Publishes a PBXIS event
-of type \"closed\" before closing the event hub."
-  []
-  (locking ami-connection
-    (when-let [c @ami-connection] (reset! ami-connection nil) (.logoff c))
-    (publish {:type "closed"})
-    (close-permanent @event-hub)
-    (reset! event-hub nil)
-    (doseq [a [q-cnt agnt-state agnt-calls memory]] (reset! a {}))))
+                               (select-keys cfg [:location-prefix :originate-context]))))
+    (let [amich (new-ami-channel)
+          amiconn (reset! ami-connection
+                          (-> (ManagerConnectionFactory. host username password)
+                              .createManagerConnection))]
+      (reset! event-hub (new-event-hub amich))
+      (doto amiconn
+        (.addEventListener (reify ManagerEventListener
+                             (onManagerEvent [_ event] (m/enqueue amich event))))
+        .login)
+      #(ami-disconnect amich))))
