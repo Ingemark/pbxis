@@ -59,7 +59,7 @@
     (logdebug "Attach sink" tkt)
     (m/on-closed sinkch #(do (logdebug "Closed sink" tkt)
                              (set-ticket-invalidator-schedule tkt true)))
-    (m/siphon eventch sinkch)
+    (px/leech eventch sinkch)
     (set-ticket-invalidator-schedule tkt false)
     sinkch))
 
@@ -96,10 +96,10 @@
 
 (defn stop []
   (loginfo "Shutting down")
-  (future
-    (px/ami-disconnect)
-    (Thread/sleep 500)
-    (when @stop-server @(@stop-server) (reset! stop-server nil)))
+  (future (when @stop-server
+            @(@stop-server)
+            (loginfo "Shut down.")
+            (reset! stop-server nil)))
   "pbxis service shutting down")
 
 (defn- split [s] (s/split s #","))
@@ -138,9 +138,14 @@
         cfg (dissoc (spy "Configuration" cfg) :http-port :ami-host :ami-username :ami-password)]
     (swap! poll-timeout #(if-let [t (cfg :poll-timeout-seconds)] [t TimeUnit/SECONDS] %))
     (swap! unsub-delay #(if-let [d (cfg :unsub-delay-seconds)] [d TimeUnit/SECONDS] %))
-    (px/ami-connect ami-host ami-username ami-password cfg)
-    (reset! stop-server (ah/start-http-server (-> (var app-main)
-                                                  (wrap-file "static-content")
-                                                  wrap-file-info
-                                                  ah/wrap-ring-handler)
-                                              {:port http-port :websocket true}))))
+    (let [stop-ami (px/ami-connect ami-host ami-username ami-password cfg)
+          stop-http (ah/start-http-server (-> (var app-main)
+                                              (wrap-file "static-content")
+                                              wrap-file-info
+                                              ah/wrap-ring-handler)
+                                          {:port http-port :websocket true})]
+      (reset! stop-server #(do (loginfo "Disconnecting from Asterisk Management Interface...")
+                               (stop-ami)
+                               (loginfo "Stopping HTTP server...")
+                               (Thread/sleep 500)
+                               (stop-http))))))
