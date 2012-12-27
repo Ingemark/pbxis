@@ -4,6 +4,5 @@ ami-password:
 http-port: 58615
 location-prefix: SCCP/
 originate-context: internal
-#originate-timeout-seconds: 45
 #poll-timeout-seconds: 30
 #unsub-delay-seconds: 15
