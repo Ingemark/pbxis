@@ -84,6 +84,7 @@
                 (.substring c 0 (- (.length c) (.length "Event"))))))))
 
 (defn- action [type params]
+  (logdebug 'ami-event (<< "(action \"~{type}\" ~{params})"))
   (let [a (Reflector/invokeConstructor
            (RT/classForName (<< "org.asteriskjava.manager.action.~{type}Action"))
            (object-array 0))]
@@ -114,13 +115,13 @@
 (defn cancel-schedule [async-result] (when async-result (m/enqueue async-result :cancel)))
 
 (defn- remember [k v timeout]
-  (logdebug "remember" k v)
+  (logdebug (<< "(remember ~{k} ~{v})"))
   (swap! memory assoc k v)
   (schedule #(swap! memory dissoc k) timeout TimeUnit/SECONDS)
   nil)
 
 (defn- recall [k]
-  (spy "recall" k (when-let [v (@memory k)] (swap! memory dissoc k) v)))
+  (spy (<< "(recall ~{k}) ->") (when-let [v (@memory k)] (swap! memory dissoc k) v)))
 
 (defn- agnt->location [agnt] (when agnt (str (@config :location-prefix) agnt)))
 
@@ -302,7 +303,7 @@
    agnts: a collection of agents' phone extension numbers.
    qs: a collection of agent queue names."
   [agnts qs]
-  (loginfo "event-channel" agnts qs)
+  (loginfo (<< "(event-channel ~{agnts} ~{qs})"))
   (let [q-set (set qs), agnt-set (set agnts), eventch (m/channel)]
     (m/on-closed eventch #(decref agnts))
     (incref agnts)
@@ -428,7 +429,7 @@
 In the case of a successful call, only a an phoneNumber event will be
 received."
   [agnt phone]
-  (logdebug "originate" agnt phone)
+  (loginfo (<< "(originate-call \"~{agnt}\" \"~{phone}\")"))
   (let [actionid (actionid)
         context (@config :originate-context)]
     (when (send-action (action "Originate"
