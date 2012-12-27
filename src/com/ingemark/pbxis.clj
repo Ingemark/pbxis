@@ -362,6 +362,9 @@
       (call-event (ami-ev :channel) unique-id nil)
       #"AgentRingNoAnswer"
       (call-event (ami-ev :member) unique-id nil)
+      #"QueueCallerAbandon"
+      (when-let [agnt (some #(when ((val %) unique-id) (key %)) @agnt-calls)]
+        (call-event agnt unique-id nil))
       #"AgentCalled"
       (call-event (ami-ev :agentCalled) unique-id
                   (ami-ev :callerIdNum) (ami-ev :callerIdName))
