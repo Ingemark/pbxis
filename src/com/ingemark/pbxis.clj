@@ -130,7 +130,7 @@
                        %)))
 
 (defn- replace-in-agnt-state [agnt path new-val]
-  (let [swapped-in (update-agnt-state agnt update-in path #(if-not (= % new-val) new-val %))]
+  (let [swapped-in (update-agnt-state agnt update-in path #(if (= % new-val) % new-val))]
     (identical? new-val (apply >?> swapped-in agnt path))))
 
 (defn- set-schedule [task-atom agnt delay task]
@@ -241,9 +241,8 @@
                                {:number number, :name name
                                 :forgetter (apply schedule forget FORGET-PHONENUM-DELAY)}))
                       e)
-                  (let [prev-call (-?> (@agnt-calls agnt) first val)]
-                    (forget)
-                    (merge e (select-keys prev-call [:number :name]))))]
+                  (do (forget)
+                      (merge e (select-keys (-?> (@agnt-calls agnt) first val) [:number :name]))))]
           (when (replace-in-agnt-state agnt [:phone-number] (String. (or (e :number) ""))) e))
         "extensionStatus"
         (when (replace-in-agnt-state agnt [:exten-status] (String. (e :status))) e)
