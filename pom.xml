@@ -16,7 +16,7 @@
   <scm>
     <connection>scm:git:git://github.com/Inge-mark/pbxis.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/Inge-mark/pbxis.git</developerConnection>
-    <tag>81c6790c2298f497e397988d44b114e4fe01b9c3</tag>
+    <tag>9f2e8878d61886364c1870879aa373e5d06a7b5c</tag>
     <url>https://github.com/Inge-mark/pbxis</url>
   </scm>
   <build>
@@ -64,7 +64,7 @@
     <dependency>
       <groupId>org.clojure</groupId>
       <artifactId>clojure</artifactId>
-      <version>1.4.0</version>
+      <version>1.5.0-RC1</version>
     </dependency>
     <dependency>
       <groupId>org.clojure</groupId>

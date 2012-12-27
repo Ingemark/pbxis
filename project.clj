@@ -3,7 +3,7 @@
   :url "http://www.inge-mark.hr"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.4.0"]
+  :dependencies [[org.clojure/clojure "1.5.0-RC1"]
                  [org.clojure/core.incubator "0.1.2"]
                  [lamina "0.5.0-beta8"]
                  [org.slf4j/slf4j-api "1.7.2"]

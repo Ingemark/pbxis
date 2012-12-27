@@ -27,7 +27,6 @@
                      :originate-context "default"
                      :originate-timeout-seconds 45})
 
-(defn- originate-timeout [] (@config :originate-timeout-seconds))
 (def FORGET-PHONENUM-DELAY [3 TimeUnit/HOURS])
 (def DUE-EVENT-WAIT-SECONDS 5)
 
