@@ -241,7 +241,9 @@
                                {:number number, :name name
                                 :forgetter (apply schedule forget FORGET-PHONENUM-DELAY)}))
                       e)
-                  (do (forget) (assoc e :number (-?> (@agnt-calls agnt) first val :number))))]
+                  (let [prev-call (-?> (@agnt-calls agnt) first val)]
+                    (forget)
+                    (merge e (select-keys prev-call [:number :name]))))]
           (when (replace-in-agnt-state agnt [:phone-number] (String. (or (e :number) ""))) e))
         "extensionStatus"
         (when (replace-in-agnt-state agnt [:exten-status] (String. (e :status))) e)
@@ -358,13 +360,17 @@
                      (ami-ev :callerIdName))])
       #"Hangup"
       (call-event (ami-ev :channel) unique-id nil)
+      #"AgentRingNoAnswer"
+      (call-event (ami-ev :member) unique-id nil)
       #"AgentCalled"
-      (call-event (ami-ev :agentCalled) unique-id (ami-ev :callerIdNum))
+      (call-event (ami-ev :agentCalled) unique-id
+                  (ami-ev :callerIdNum) (ami-ev :callerIdName))
       #"AgentComplete"
-      (agnt-event
+      [(call-event (ami-ev :member) unique-id nil)
+       (agnt-event
        (ami-ev :member) "agentComplete"
        :uniqueId unique-id :talkTime (ami-ev :talkTime) :holdTime (ami-ev :holdTime)
-       :recording (-?> ami-ev :variables (.get "FILEPATH")))
+       :recording (-?> ami-ev :variables (.get "FILEPATH")))]
       #"OriginateResponse"
       (let [action-id (ami-ev :actionId)]
         (if (= (ami-ev :response) "Success")
