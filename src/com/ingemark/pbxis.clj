@@ -11,7 +11,7 @@
 
 (ns com.ingemark.pbxis
   (require [clojure.set :as set] [clojure.data :as d] [clojure.string :as s]
-           [lamina.core :as m] [lamina.core.graph.node :as node]
+           [lamina.core :as m] [lamina.api :as ma] [lamina.core.graph.node :as node]
            [lamina.core.channel :as chan] [lamina.executor :as ex]
            [com.ingemark.logging :refer :all]
            (clojure.core [incubator :refer (-?> -?>> dissoc-in)] [strint :refer (<<)]))
@@ -60,12 +60,12 @@
     (m/on-closed dest #(m/cancel-callback src enq-dest))
     dest))
 
-(defn async-stage [src]
-  (let [dest (m/channel)]
-    (m/receive-all src (m/pipeline #(m/enqueue dest %)))
-    (m/on-closed src #(m/close dest))
-    (m/on-closed dest #(m/close src))
-    dest))
+(defn pipeline-stage [src]
+  (let [ch* (chan/mimic src)]
+    (ma/bridge-join src "async-stage" (m/pipeline #(m/enqueue ch*, %)) ch*)
+    ch*))
+
+(defn pipelined [f] (fn [& args] (pipeline-stage (apply f args))))
 
 (defn invoke [^String m o & args]
   (clojure.lang.Reflector/invokeInstanceMethod o m (into-array Object args)))
@@ -297,7 +297,7 @@
         (publish (qcount-event q calls))))))
 
 (defn event-channel
-  "Sets up and returns a permanent lamina channel that will emit
+  "Sets up and returns a lamina channel that will emit
    events related to the supplied agents and queues.
 
    agnts: a collection of agents' phone extension numbers.
@@ -402,19 +402,18 @@
 
 (defn- new-ami-channel []
   (let [ch (m/channel)
-        amich (m/splice ch (m/siphon->> (m/map* event-bean) ch))]
+        amich (m/splice ch (m/join->> (m/map* event-bean) ch))]
     (m/receive-all amich ensure-ami-event-filter)
     amich))
 
 (defn- new-event-hub [amich]
   (let [ch (m/channel)]
-    (m/siphon (->> amich
-                   (m/map* ami->pbxis)
-                   async-stage
-                   (m/map* #(if (map? %) [%] %))
-                   m/concat*
-                   (m/remove* nil?))
-              ch)
+    (m/join (->> amich
+                 ((pipelined m/map*) ami->pbxis)
+                 (m/map* #(if (map? %) [%] %))
+                 m/concat*
+                 (m/remove* nil?))
+            ch)
     (doto (m/splice (->> ch (m/map* pbxis-event-filter) (m/remove* nil?)) ch)
       (m/receive-all #(logdebug "PBXIS event" %)))))
 
