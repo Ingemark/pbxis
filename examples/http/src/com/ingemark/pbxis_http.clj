@@ -1,5 +1,17 @@
+;; Copyright 2012 Inge-mark d.o.o.
+;;    Licensed under the Apache License, Version 2.0 (the "License");
+;;    you may not use this file except in compliance with the License.
+;;    You may obtain a copy of the License at
+;;        http://www.apache.org/licenses/LICENSE-2.0
+;;    Unless required by applicable law or agreed to in writing, software
+;;    distributed under the License is distributed on an "AS IS" BASIS,
+;;    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;;    See the License for the specific language governing permissions and
+;;    limitations under the License.
+
 (ns com.ingemark.pbxis-http
-  (require (com.ingemark [pbxis :as px, :refer (>?>)] [logging :refer :all])
+  (require (com.ingemark [pbxis :as px] [logging :refer :all])
+           [com.ingemark.pbxis.util :as pu :refer (>?>)]
            [com.ingemark.pbxis-http.homepage :refer :all]
            [clojure.java.io :as io] [clojure.string :as s] [clojure.walk :refer (keywordize-keys)]
            [clojure.core.incubator :refer (-?> dissoc-in)]
@@ -35,16 +47,16 @@
 
 (defn- invalidate-ticket [tkt]
   (loginfo "Invalidate ticket" tkt)
-  (swap! ticket->eventch #(do (-?> (% tkt) :eventch px/close-permanent)
+  (swap! ticket->eventch #(do (-?> (% tkt) :eventch m/close)
                               (dissoc % tkt))))
 
 (defn- set-ticket-invalidator-schedule [tkt reschedule?]
   (let [newsched
         (when reschedule?
           (logdebug "Schedule invalidator" tkt)
-          (apply px/schedule #(invalidate-ticket tkt) @unsub-delay))]
+          (apply pu/schedule #(invalidate-ticket tkt) @unsub-delay))]
     (swap! ticket->eventch update-in [tkt :invalidator]
-           #(do (when % (logdebug "Cancel invalidator" tkt) (px/cancel-schedule %))
+           #(do (when % (logdebug "Cancel invalidator" tkt) (pu/cancel-schedule %))
                 newsched))))
 
 (defn- ticket-for [agnts qs]
@@ -59,7 +71,7 @@
     (logdebug "Attach sink" tkt)
     (m/on-closed sinkch #(do (logdebug "Closed sink" tkt)
                              (set-ticket-invalidator-schedule tkt true)))
-    (px/leech eventch sinkch)
+    (pu/leech eventch sinkch)
     (set-ticket-invalidator-schedule tkt false)
     sinkch))
 
@@ -76,7 +88,7 @@
         (if-let [evs (m/channel->seq sinkch)]
           (finally (m/success-result (vec evs)))
           (m/run-pipeline (m/read-channel*
-                           sinkch :timeout (apply px/to-millis @poll-timeout), :on-timeout :xx)
+                           sinkch :timeout (apply pu/to-millis @poll-timeout), :on-timeout :xx)
                           {:error-handler finally}
                           (m/wait-stage EVENT-BURST-MILLIS)
                           #(vec (let [evs (m/channel->seq sinkch)]
