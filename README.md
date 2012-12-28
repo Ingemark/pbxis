@@ -1,15 +1,16 @@
 # Asterisk Call Center Integration Library
 
-The library connects to a call center's Asterisk server and exposes services typically needed by an application that agents use while serving the customer calls. Allows easy integration of Asterisk-related services into the wider scope, such as a CRM application.
+The main purpose of the library is to connect to an Asterisk PBX server and provide filtered event streams that allow the receiver to track the state of call queues and agents. Additional features include originating calls and managing the status of agents against specific queues (log on/off, pause). Events are received over a *lamina* channel, which makes *aleph* a particurarly convenient library to use when implementing a server on top of this library, but there is no restriction to it.
 
-The library is designed with the following scenario in mind (but in no way limited to it):
+The library can be used to implemented a scenario like the following:
 
 * there is a web application that agents use in their workplace;
 * *pbxis* is itself exposed as a web service;
-* the web application subscribes an agent to the *pbxis* service and passes its event-stream URL to the agent's browser;
+* the web application subscribes an agent to the *pbxis* service and passes the event-stream URL to the agent's browser;
 * the browser contacts *pbxis* directly to receive the event stream.
 
-Events are received through a lamina channel, so it is recommended to implement a server with aleph, although there is no restriction to it.
+Another use case is a supervisor application that monitors the activities of all the agents in the call center. The `examples/http` directory contains a very simple example of such an application.
+
 
 ## Feature highlights
 
@@ -22,8 +23,6 @@ Events are received through a lamina channel, so it is recommended to implement 
 * can issue commands to Asterisk, such as originating a call or managing agent status;
 
 * robust to AMI connection failures: automatically reconnects and restores the tracked state;
-
-* robust to client connection failures: keeps enqueueing events for a configured period within which a client can reconnect and continue receiving events with no loss;
 
 * uses a single AMI connection to cater for all registered agents;
 
@@ -40,9 +39,7 @@ Events are received through a lamina channel, so it is recommended to implement 
 
 While connected, these functions are supported:
 
-`config-agnt`: register a call-center agent with the names of Asterisk queues the agent is interested in. This function accepts an optional list of event listener functions.
-
-`attach-sink`: register lamina channel as an event sink that will receive events.
+`event-channel`: returns a lamina channel over which the client receives the event stream.
 
 `originate-call`: place a phone call to the supplied phone number and patch it through to agent's extension.
 
@@ -59,7 +56,7 @@ Events, enqueued into the event sink channel, are maps where the key :type deter
 
 `extensionStatus`: status of the agent's extension. Detail: `:status`, one of `#{"not_inuse", "inuse", "busy", "unavailable", "ringing", "onhold"}`.
 
-`phoneNumber`: phone number of the remote party currently patched through to agent's extension. Detail:`:number`, the phone number (string).
+`phoneNumber`: phone number of the remote party currently patched through to agent's extension. Detail:`:number`, the phone number (string); `:name`, the party name (if available).
 
 `agentComplete`: contains summary info on the just-completed agent call. Detail: `:uniqueId`, unique ID of the call (string); `:talkTime`, talk time in seconds (integer); `:holdTime`, hold time in seconds (integer); `:recording`, path to the recorded call on the server (string).
 
@@ -68,7 +65,7 @@ Events, enqueued into the event sink channel, are maps where the key :type deter
 
 ## Examples
 
-The `examples` directory contains a project `http` which uses aleph to exposes *pbxis* functions as a lightweight RESTful service. Events can be collected using long polling, Server-sent Events, or WebSockets. The server also provides an HTML user interface to try out each of the event-stream technologies. The relative URL is `/client/<tech>/<agent>`, where <tech> is one of long-poll, sse, or websocket, and <agent> is the extension of the agent whose event stream to receive and visualize.
+The `examples/http` project exposes the library functions as a RESTful web service and can provide the event stream directly to a web browser over HTTP long polling, Server-Sent Events, and Websockets. The project also includes a ready-to-test HTML page which displays the status of an arbitrary number of agents and queues. The relative URL of the page is `/client/<tech>/<agents>/<queues>`, where <tech> is one of "long-poll", "sse", or "websocket", <agents> is a comma-separated list of agents' extensions, and <queues> is a comma-separated list of queue names.
 
 
 ## License
