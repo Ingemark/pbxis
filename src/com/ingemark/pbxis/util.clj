@@ -33,7 +33,7 @@
 
 (defn pipeline-stage [src]
   (let [ch* (chan/mimic src)]
-    (ma/bridge-join src "async-stage" (m/pipeline #(m/enqueue ch*, %)) ch*)
+    (ma/bridge-join src "pipeline-stage" (m/pipeline #(m/enqueue ch* %)) ch*)
     ch*))
 
 (defn pipelined [f] (fn [& args] (pipeline-stage (apply f args))))
@@ -83,6 +83,9 @@
 
 (def int->exten-status
   {0 "not_inuse" 1 "inuse" 2 "busy" 4 "unavailable" 8 "ringing" 16 "onhold"})
+
+(def int->channel-status
+  {2 "OffHook" 3 "Dialing" 4 "Ring" 5 "Ringing" 6 "Up" 7 "Busy"})
 
 (defn event->member-status [event]
   (let [p (:paused event), s (:status event)]

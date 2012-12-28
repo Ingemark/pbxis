@@ -117,10 +117,10 @@ received."
   (let [r (reduce
            #(apply assoc-in %1 %2)
            {}
-           (for [{:keys [bridgedChannel bridgedUniqueId callerId]}
+           (for [{:keys [bridgedChannel bridgedUniqueId callerId event-type]}
                  (send-eventaction (u/action "Status" {}))
                  :let [ag (u/digits bridgedChannel)]
-                 :when (if agnt (= ag agnt) true)]
+                 :when (and bridgedUniqueId (if agnt (= ag agnt) true))]
              [[agnt bridgedUniqueId] (or callerId "")]))]
     (if agnt (r agnt) r)))
 

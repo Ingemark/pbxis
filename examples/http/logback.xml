@@ -35,7 +35,7 @@
     <appender-ref ref="file"/>
   </root>
   <logger name="com.ingemark" level="ALL"/>
-  <logger name="ami-event" level="ALL"/>
+  <logger name="ami-event" level="INFO"/>
   <logger name="org.asteriskjava.manager.internal.EventBuilderImpl" level="ERROR"/>
   <logger name="org.asteriskjava.manager.internal.ResponseBuilderImpl" level="ERROR"/>
 </configuration>
