@@ -48,11 +48,6 @@
 
 (defn to-millis [^Long t ^TimeUnit unit] (.toMillis unit t))
 
-(defn close-permanent [ch]
-  (when-let [n (and ch (chan/receiver-node ch))]
-    (node/set-state! n ^NodeState (node/state n) :permanent? false)
-    (m/close ch)))
-
 (defn leech [src dest]
   (let [enq-dest #(m/enqueue dest %)]
     (m/receive-all src enq-dest)
