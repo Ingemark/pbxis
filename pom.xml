@@ -16,7 +16,7 @@
   <scm>
     <connection>scm:git:git://github.com/Inge-mark/pbxis.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/Inge-mark/pbxis.git</developerConnection>
-    <tag>37caae09b0125841f2916ce2b968b27ed63f0379</tag>
+    <tag>45a53cce4b0d395b3dab66019819040ff2a66c5d</tag>
     <url>https://github.com/Inge-mark/pbxis</url>
   </scm>
   <build>
