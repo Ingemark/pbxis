@@ -1,4 +1,4 @@
-ami-host: 192.168...
+ami-host:
 ami-username:
 ami-password:
 http-port: 58615

@@ -65,7 +65,11 @@ Events, enqueued into the event sink channel, are maps where the key :type deter
 
 ## Examples
 
-The `examples/http` project exposes the library functions as a RESTful web service and can provide the event stream directly to a web browser over HTTP long polling, Server-Sent Events, and Websockets. The project also includes a ready-to-test HTML page which displays the status of an arbitrary number of agents and queues. The relative URL of the page is `/client/<tech>/<agents>/<queues>`, where <tech> is one of "long-poll", "sse", or "websocket", <agents> is a comma-separated list of agents' extensions, and <queues> is a comma-separated list of queue names.
+The `examples/http` project exposes the library functions as a RESTful web service and can provide the event stream directly to a web browser over HTTP long polling, Server-Sent Events, and Websockets. The project also includes a ready-to-test HTML page which displays the status of an arbitrary number of agents and queues. The relative URL of the page is `/client/<tech>/<agents>/<queues>`, where `<tech>` is one of "long-poll", "sse", or "websocket", `<agents>` is a comma-separated list of agents' extensions, and `<queues>` is a comma-separated list of queue names. For example,
+
+`http://localhost:58615/client/websocket/147,149/q1,q2`
+
+will open a page that tracks agents 147, 149 (these are their extension numbers) and queues q1, q2.
 
 
 ## License
