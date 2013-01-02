@@ -3,7 +3,7 @@
   <groupId>com.ingemark</groupId>
   <artifactId>pbxis-http</artifactId>
   <packaging>jar</packaging>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.5.0-SNAPSHOT</version>
   <name>pbxis-http</name>
   <description>Asterisk Call Center HTTP Adapter</description>
   <url>http://www.inge-mark.hr</url>
@@ -58,7 +58,7 @@
     <dependency>
       <groupId>org.clojure</groupId>
       <artifactId>clojure</artifactId>
-      <version>1.4.0</version>
+      <version>1.5.0-RC1</version>
     </dependency>
     <dependency>
       <groupId>org.clojure</groupId>
@@ -68,7 +68,7 @@
     <dependency>
       <groupId>com.ingemark</groupId>
       <artifactId>pbxis</artifactId>
-      <version>0.5.0-SNAPSHOT</version>
+      <version>0.5.0-alpha1</version>
     </dependency>
     <dependency>
       <groupId>net.cgrand</groupId>

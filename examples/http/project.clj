@@ -1,11 +1,11 @@
-(defproject com.ingemark/pbxis-http "0.1.0-SNAPSHOT"
+(defproject com.ingemark/pbxis-http "0.5.0-SNAPSHOT"
   :description "Asterisk Call Center HTTP Adapter"
   :url "http://www.inge-mark.hr"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.5.0-RC1"]
                  [org.clojure/core.incubator "0.1.2"]
-                 [com.ingemark/pbxis "0.5.0-SNAPSHOT"]
+                 [com.ingemark/pbxis "0.5.0-alpha1"]
                  [net.cgrand/moustache "1.1.0"]
                  [hiccup "1.0.2"]
                  [ring/ring-core "1.1.0" :exclusions [javax.servlet/servlet-api]]
