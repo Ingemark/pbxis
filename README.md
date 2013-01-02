@@ -1,6 +1,6 @@
 # Asterisk Call Center Integration Library
 
-The main purpose of the library is to connect to an Asterisk PBX server and provide filtered event streams that allow the receiver to track the state of call queues and agents. Additional features include originating calls and managing the status of agents against specific queues (log on/off, pause). Events are received over a *lamina* channel, which makes *aleph* a particularly convenient library to use when implementing a server on top of this library, but there is no restriction to it.
+The main purpose of the library is to connect to an Asterisk PBX server and provide filtered event streams that allow the receiver to track the state of call queues and agents. Additional features include originating calls and managing the status of agents against specific queues (log on/off, pause). Events are received over a [*lamina*](https://github.com/ztellman/lamina) channel, which makes [*aleph*](https://github.com/ztellman/aleph) a particularly convenient library to use when implementing a server on top of this library, but there is no restriction to it.
 
 The library can be used to implemented a scenario like the following:
 
