@@ -33,7 +33,7 @@
 
 (defn pipeline-stage [src]
   (let [ch* (chan/mimic src)]
-    (ma/bridge-join src "pipeline-stage" (m/pipeline #(m/enqueue ch* %)) ch*)
+    (ma/bridge-join src "pipeline-stage" (m/pipeline {:unwrap? true} #(m/enqueue ch* %)) ch*)
     ch*))
 
 (defn pipelined [f] (fn [& args] (pipeline-stage (apply f args))))
