@@ -25,6 +25,7 @@
 (defn to-millis [^Long t ^TimeUnit unit] (.toMillis unit t))
 
 (defn leech [src dest]
+  #_(ma/connect src dest false true) ;; will work with lamina 0.5.0
   (let [enq-dest #(m/enqueue dest %)]
     (m/receive-all src enq-dest)
     (m/on-closed src #(m/close dest))
