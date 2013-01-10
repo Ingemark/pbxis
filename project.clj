@@ -12,4 +12,4 @@
                  [org.asteriskjava/asterisk-java "1.0.0.M3"]]
   :exclusions [log4j/log4j]
   :jvm-opts ["-Dlogback.configurationFile=logback.xml"]
-  :repl-options {:port 4001, :init-ns com.ingemark.pbxis})
+  :repl-options {:init-ns com.ingemark.pbxis})

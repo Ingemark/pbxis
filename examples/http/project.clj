@@ -16,5 +16,4 @@
                  [ch.qos.logback/logback-classic "1.0.9"]]
   :main com.ingemark.pbxis-http.main
   :uberjar-name "pbxis-http-standalone.jar"
-  :repl-options {:port 4001
-                 :init-ns com.ingemark.pbxis-http})
+  :repl-options {:init-ns com.ingemark.pbxis-http})

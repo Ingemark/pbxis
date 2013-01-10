@@ -136,15 +136,14 @@
                                                            "pause" ["paused"]
                                                            "remove" []))))]}]))
 
-(defn main []
+(defn start []
   (System/setProperty "logback.configurationFile" "logback.xml")
   (let [cfg (->> (doto (java.util.Properties.) (.load (io/reader "pbxis.properties")))
                  (into {})
                  keywordize-keys)
         parse-int #(try (Integer/parseInt ^String %) (catch NumberFormatException _ nil))
         cfg (reduce #(update-in %1 [%2] parse-int) cfg
-                    [:http-port :originate-timeout-seconds :poll-timeout-seconds
-                     :unsub-delay-seconds])
+                    [:http-port :poll-timeout-seconds :unsub-delay-seconds])
         cfg (into {} (remove #(nil? (val %)) cfg))
         {:keys [http-port ami-host ami-username ami-password]} cfg
         cfg (dissoc (spy "Configuration" cfg) :http-port :ami-host :ami-username :ami-password)]
