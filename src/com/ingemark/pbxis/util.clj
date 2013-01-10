@@ -83,7 +83,7 @@
     (swap! task-atom update-in [agnt] #(do (cancel-schedule %) newsched))))
 
 (def int->exten-status
-  {0 "not_inuse" 1 "inuse" 2 "busy" 4 "unavailable" 8 "ringing" 16 "onhold"})
+  {0 "not_inuse" 1 "inuse" 2 "busy" 4 "unavailable" 8 "ringing" 9 "ringinuse" 16 "onhold"})
 
 (def int->channel-status
   {2 "OffHook" 3 "Dialing" 4 "Ring" 5 "Ringing" 6 "Up" 7 "Busy"})
