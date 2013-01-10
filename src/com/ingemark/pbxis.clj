@@ -22,17 +22,17 @@
 (def ^:const DUE-EVENT-WAIT-SECONDS 5)
 (def ^:const ORIGINATE-CALL-TIMEOUT-SECONDS 180)
 
-(defonce ^:private lock (Object.))
-
 (defonce config (atom {}))
+
+(defonce agnt-state (atom {}))
+
+(defonce q-cnt (atom {}))
+
+(defonce ^:private lock (Object.))
 
 (defonce ^:private ami-connection (atom nil))
 
 (defonce ^:private event-hub (atom nil))
-
-(defonce ^:private agnt-state (atom {}))
-
-(defonce ^:private q-cnt (atom {}))
 
 (defonce ^:private agnt-calls (atom {}))
 
@@ -337,7 +337,7 @@ received."
   (let [ch (m/channel)]
     (m/join (->> amich
                  ((u/pipelined m/map*) ami->pbxis)
-                 (m/map* #(if (map? %) [%] %))
+                 (m/map* #(if (sequential? %) % [%]))
                  m/concat*
                  (m/remove* nil?))
             ch)
