@@ -1,4 +1,4 @@
-(defproject com.ingemark/pbxis "0.5.0-alpha2"
+(defproject com.ingemark/pbxis "0.5.0-alpha3"
   :description "Asterisk Call Center Adapter"
   :url "http://www.inge-mark.hr"
   :license {:name "Eclipse Public License" :url "http://www.eclipse.org/legal/epl-v10.html"}
