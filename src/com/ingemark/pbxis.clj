@@ -24,9 +24,9 @@
 
 (defonce config (atom {}))
 
-(defonce agnt-state (atom {}))
+(defonce ^:private agnt-state (atom {}))
 
-(defonce q-cnt (atom {}))
+(defonce ^:private q-cnt (atom {}))
 
 (defonce ^:private lock (Object.))
 
@@ -37,14 +37,13 @@
 (defonce ^:private agnt-calls (atom {}))
 
 (defn- send-action [a & [timeout]]
-  (let [r (spy 'ami-event "Action response"
-               (->> (-> (if timeout
-                          (.sendAction @ami-connection a timeout)
-                          (.sendAction @ami-connection a))
-                        bean (dissoc :attributes :class :dateReceived))
-                    (remove #(nil? (val %)))
-                    (into (sorted-map))))]
-    (when (= (r :response) "Success") r)))
+  (spy 'ami-event "Action response"
+       (->> (-> (if timeout
+                  (.sendAction @ami-connection a timeout)
+                  (.sendAction @ami-connection a))
+                bean (dissoc :attributes :class :dateReceived))
+            (remove #(nil? (val %)))
+            (into (sorted-map)))))
 
 (defn- send-eventaction [a]
   (->>
@@ -137,8 +136,10 @@ received."
                                             (assoc-in st [agnt :refcount] (dec curr)))))
                                      st agnts))))
 
-(defn- exten-status [agnt] (-> (u/action "ExtensionState" {:exten agnt :context "hint"})
-                               send-action :status u/int->exten-status))
+(defn- exten-status [agnt]
+  (let [r (-> (u/action "ExtensionState" {:exten agnt :context "hint"})
+              send-action :status u/int->exten-status)]
+    (when (= (r :response) "Success") r)))
 
 (defn- send-introductory-events [ch agnts qs]
   (locking lock
