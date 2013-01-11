@@ -9,20 +9,20 @@
 ;;    See the License for the specific language governing permissions and
 ;;    limitations under the License.
 
-(ns com.ingemark.pbxis-http
-  (require (com.ingemark [pbxis :as px] [logging :refer :all])
-           [com.ingemark.pbxis.util :as pu :refer (>?>)]
-           [com.ingemark.pbxis-http.homepage :refer :all]
-           [clojure.java.io :as io] [clojure.string :as s] [clojure.walk :refer (keywordize-keys)]
-           [clojure.core.incubator :refer (-?> dissoc-in)]
-           [ring.util.response :as r]
-           [net.cgrand.moustache :refer (app)]
-           (aleph [http :as ah] [formats :as af])
-           [lamina.core :as m]
-           (ring.middleware [json-params :refer (wrap-json-params)]
-                            [file :refer (wrap-file)]
-                            [file-info :refer (wrap-file-info)]))
-  (import java.util.concurrent.TimeUnit))
+(ns com.ingemark.pbxis-http (:gen-class)
+    (require (com.ingemark [pbxis :as px] [logging :refer :all])
+             [com.ingemark.pbxis.util :as pu :refer (>?>)]
+             [com.ingemark.pbxis-http.homepage :refer :all]
+             [clojure.java.io :as io] [clojure.string :as s] [clojure.walk :refer (keywordize-keys)]
+             [clojure.core.incubator :refer (-?> dissoc-in)]
+             [ring.util.response :as r]
+             [net.cgrand.moustache :refer (app)]
+             (aleph [http :as ah] [formats :as af])
+             [lamina.core :as m]
+             (ring.middleware [json-params :refer (wrap-json-params)]
+                              [file :refer (wrap-file)]
+                              [file-info :refer (wrap-file-info)]))
+    (import java.util.concurrent.TimeUnit))
 
 (defonce poll-timeout (atom [30 TimeUnit/SECONDS]))
 (defonce unsub-delay (atom [15 TimeUnit/SECONDS]))
@@ -39,7 +39,7 @@
                                        "data: " (af/encode-json->string (dissoc % :type)) "\n"
                                        "\n"))
                              r)}
-              ((if (nil? r) r/not-found r/response) (af/encode-json->string r)))))))
+              (if (nil? r) (r/not-found r) (r/response (af/encode-json->string r))))))))
 
 (defn- ticket [] (spy "New ticket" (-> (java.util.UUID/randomUUID) .toString)))
 
@@ -160,3 +160,5 @@
                                (loginfo "Stopping HTTP server...")
                                (Thread/sleep 500)
                                (stop-http))))))
+
+(defn -main [& args] (start))
