@@ -1,7 +1,8 @@
-(defproject com.ingemark/pbxis "0.5.0-alpha3"
+(defproject com.ingemark/pbxis "0.5.0"
   :description "Asterisk Call Center Adapter"
   :url "http://www.inge-mark.hr"
   :license {:name "Eclipse Public License" :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :repositories [["ingemark" "http://dev.inge-mark.hr/downloads/m2"]]
 
   :dependencies [[org.clojure/clojure "1.5.0-RC1"]
                  [org.clojure/core.incubator "0.1.2"]
