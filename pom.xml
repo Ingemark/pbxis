@@ -16,7 +16,7 @@
   <scm>
     <connection>scm:git:git://github.com/Inge-mark/pbxis.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/Inge-mark/pbxis.git</developerConnection>
-    <tag>794e372a6aecb3aa8f77500176377d55e23faa16</tag>
+    <tag>83f1ed12243627d38003cd59f414fe212af4b89c</tag>
     <url>https://github.com/Inge-mark/pbxis</url>
   </scm>
   <build>
@@ -60,7 +60,7 @@
       </releases>
     </repository>
     <repository>
-      <id>ingemark</id>
+      <id>releases</id>
       <url>http://dev.inge-mark.hr/downloads/m2</url>
       <snapshots>
         <enabled>true</enabled>

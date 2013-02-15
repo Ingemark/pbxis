@@ -14,4 +14,5 @@
                  [aleph "0.3.0-beta8"]
                  [org.slf4j/slf4j-api "1.7.2"]
                  [ch.qos.logback/logback-classic "1.0.9"]]
+  :jvm-opts ["-Dlogback.configurationFile=logback.xml"]
   :main com.ingemark.pbxis-http)
