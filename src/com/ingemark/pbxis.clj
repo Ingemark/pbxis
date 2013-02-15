@@ -245,8 +245,8 @@ received."
         [(let [amich (ami-ev :channel)]
            (when-not (.startsWith amich "Local")
              (u/call-event amich (ami-ev :srcUniqueId) (-> ami-ev :dialString u/digits))))
-         (u/call-event (ami-ev :destination) (spy "Dial destUniqueId" (ami-ev :destUniqueId))
-                       (or (u/recall (spy "Dial srcUniqueId" (ami-ev :srcUniqueId))) (spy "Dial callerIdNum" (ami-ev :callerIdNum)))
+         (u/call-event (ami-ev :destination) (ami-ev :destUniqueId)
+                       (or (u/recall (ami-ev :srcUniqueId)) (ami-ev :callerIdNum))
                        (ami-ev :callerIdName))])
       #"Hangup"
       (u/call-event (ami-ev :channel) unique-id nil)
@@ -267,7 +267,7 @@ received."
       #"OriginateResponse"
       (let [action-id (ami-ev :actionId)]
         (if (= (ami-ev :response) "Success")
-          (u/remember (spy "OriginateResponse" unique-id) (u/recall action-id) DUE-EVENT-WAIT-SECONDS)
+          (u/remember unique-id (u/recall action-id) DUE-EVENT-WAIT-SECONDS)
           (u/agnt-event (ami-ev :exten) "originateFailed" :actionId action-id)))
       #"ExtensionStatus"
       (u/agnt-event (u/digits (ami-ev :exten)) "extensionStatus"
