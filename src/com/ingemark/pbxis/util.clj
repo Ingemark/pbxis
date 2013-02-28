@@ -24,17 +24,11 @@
 
 (defn to-millis [^Long t ^TimeUnit unit] (.toMillis unit t))
 
-(defn leech [src dest]
-  #_(ma/connect src dest false true) ;; will work with lamina 0.5.0
-  (let [enq-dest #(m/enqueue dest %)]
-    (m/receive-all src enq-dest)
-    (m/on-closed src #(m/close dest))
-    (m/on-closed dest #(m/cancel-callback src enq-dest))
-    dest))
+(defn leech [src dest] (ma/connect src dest false true))
 
 (defn pipeline-stage [src]
   (let [ch* (chan/mimic src)]
-    (ma/bridge-join src "pipeline-stage" (m/pipeline {:unwrap? true} #(m/enqueue ch* %)) ch*)
+    (ma/bridge-join src ch* "pipeline-stage" (m/pipeline {:unwrap? true} #(m/enqueue ch* %)))
     ch*))
 
 (defn pipelined [f] (fn [& args] (pipeline-stage (apply f args))))
