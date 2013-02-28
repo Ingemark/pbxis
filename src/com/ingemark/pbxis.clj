@@ -17,7 +17,7 @@
   (import (org.asteriskjava.manager ManagerConnectionFactory ManagerEventListener)
           java.util.concurrent.TimeUnit))
 
-(def default-config {:location-prefix "SCCP/", :originate-context "default"})
+(def default-config {:location-prefix "SCCP/"})
 (def FORGET-PHONENUM-DELAY [3 TimeUnit/HOURS])
 (def ^:const DUE-EVENT-WAIT-SECONDS 5)
 (def ^:const ORIGINATE-CALL-TIMEOUT-SECONDS 180)
@@ -53,6 +53,8 @@
    .getEvents
    (mapv u/event-bean)))
 
+(defn- agnt->location [agnt] (when agnt (str (@config :location-prefix) agnt)))
+
 (defn originate-call
   "Issues a request to originate a call to the supplied phone number
    and patch it through to the supplied agent's extension.
@@ -69,16 +71,14 @@ received."
   (let [actionid (u/actionid)
         context (@config :originate-context)]
     (when (send-action (u/action "Originate"
-                                 {:context context
-                                  :exten agnt
-                                  :channel (str "Local/" phone "@" context)
+                                 {:exten phone
+                                  :channel (agnt->location agnt)
+                                  :callerId ""
                                   :actionId actionid
                                   :priority (int 1)
                                   :async true}))
       (u/remember actionid phone ORIGINATE-CALL-TIMEOUT-SECONDS)
       actionid)))
-
-(defn- agnt->location [agnt] (when agnt (str (@config :location-prefix) agnt)))
 
 (defn queue-action
   "Executes an action against an agent's queue. This is a thin wrapper
@@ -138,8 +138,8 @@ received."
 
 (defn- exten-status [agnt]
   (let [r (-> (u/action "ExtensionState" {:exten agnt :context "hint"})
-              send-action :status u/int->exten-status)]
-    (when (= (r :response) "Success") r)))
+              send-action)]
+    (when (= (r :response) "Success") (-> r :status u/int->exten-status))))
 
 (defn- send-introductory-events [ch agnts qs]
   (locking lock
@@ -367,15 +367,11 @@ received."
      :location-prefix -- string to prepend to agent's extension
        in order to form the agent \"location\" as known to
        Asterisk. This is typically \"SCCP/\", \"SIT/\" or similar.
-
-     :originate-context -- dialplan context used for call origination.
-       Typically the default context is called \"default\".
 "
   [host username password cfg]
   (locking lock
     (reset! config (spy "PBXIS config"
-                        (merge default-config
-                               (select-keys cfg [:location-prefix :originate-context]))))
+                        (merge default-config (select-keys cfg [:location-prefix]))))
     (let [amich (new-ami-channel)
           amiconn (reset! ami-connection
                           (-> (ManagerConnectionFactory. host username password)

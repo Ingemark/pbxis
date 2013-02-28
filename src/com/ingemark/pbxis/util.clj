@@ -24,17 +24,11 @@
 
 (defn to-millis [^Long t ^TimeUnit unit] (.toMillis unit t))
 
-(defn leech [src dest]
-  #_(ma/connect src dest false true) ;; will work with lamina 0.5.0
-  (let [enq-dest #(m/enqueue dest %)]
-    (m/receive-all src enq-dest)
-    (m/on-closed src #(m/close dest))
-    (m/on-closed dest #(m/cancel-callback src enq-dest))
-    dest))
+(defn leech [src dest] (ma/connect src dest false true))
 
 (defn pipeline-stage [src]
   (let [ch* (chan/mimic src)]
-    (ma/bridge-join src "pipeline-stage" (m/pipeline {:unwrap? true} #(m/enqueue ch* %)) ch*)
+    (ma/bridge-join src ch* "pipeline-stage" (m/pipeline {:unwrap? true} #(m/enqueue ch* %)))
     ch*))
 
 (defn pipelined [f] (fn [& args] (pipeline-stage (apply f args))))
@@ -82,11 +76,15 @@
                    (apply schedule #(swap! task-atom dissoc agnt) (task) delay))]
     (swap! task-atom update-in [agnt] #(do (cancel-schedule %) newsched))))
 
+(defn extend-with-identity [m] #(str (m % %)))
+
 (def int->exten-status
-  {0 "not_inuse" 1 "inuse" 2 "busy" 4 "unavailable" 8 "ringing" 9 "ringinuse" 16 "onhold"})
+  (extend-with-identity
+    {0 "not_inuse" 1 "inuse" 2 "busy" 4 "unavailable" 8 "ringing" 9 "ringinuse" 16 "onhold"}))
 
 (def int->channel-status
-  {2 "OffHook" 3 "Dialing" 4 "Ring" 5 "Ringing" 6 "Up" 7 "Busy"})
+  (extend-with-identity
+    {2 "OffHook" 3 "Dialing" 4 "Ring" 5 "Ringing" 6 "Up" 7 "Busy"}))
 
 (defn event->member-status [event]
   (let [p (:paused event), s (:status event)]
