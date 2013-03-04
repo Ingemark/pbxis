@@ -64,7 +64,7 @@ Depending on its type, an event may have the properties `:agent` and/or `:queue`
 
 Events, enqueued into the event channel, are maps where the key `:type` determines event type, the keys `:agent` and `:queue` determine its scope, and the rest are event details. List of events by type:
 
-**`extensionStatus`**: status of a phone device. Scope: `:agent`. Detail: `:status`, one of:
+** `extensionStatus` **: status of a phone device. Scope: `:agent`. Detail: `:status`, one of:
 
 - `not_inuse`: the phone is idle and ready to accept calls;
 
@@ -81,7 +81,7 @@ Events, enqueued into the event channel, are maps where the key `:type` determin
 - `unavailable`: the phone is not available to Asterisk (it's off-line).
 
 
-**`queueMemberStatus`**: status of the agent with respect to a particular agent queue. Scope: `:agent`, `:queue`. Detail: `:status`, one of:
+** `queueMemberStatus` **: status of the agent with respect to a particular agent queue. Scope: `:agent`, `:queue`. Detail: `:status`, one of:
 
 - `loggedoff`: the agent is not logged on to this queue;
 
@@ -92,13 +92,13 @@ Events, enqueued into the event channel, are maps where the key `:type` determin
 - `unknown`.
 
 
-**`phoneNumber`**: phone number of the remote party currently patched through to agent's extension. Scope: `:agent`. Detail: `:number`, the phone number (string) or `nil` if there is no call; `:name`, the party name (if available).
+** `phoneNumber` **: phone number of the remote party currently patched through to agent's extension. Scope: `:agent`. Detail: `:number`, the phone number (string) or `nil` if there is no call; `:name`, the party name (if available).
 
-**`queueCount`**: number of callers waiting in an agent queue. Scope: `:queue`. Detail: `:count`, the queue count.
+** `queueCount` **: number of callers waiting in an agent queue. Scope: `:queue`. Detail: `:count`, the queue count.
 
-**`agentComplete`**: contains summary info on the just-completed agent call. Scope: `:agent`. Detail: `:uniqueId`, unique ID of the call (string); `:talkTime`, talk time in seconds (integer); `:holdTime`, hold time in seconds (integer); `:recording`, path to the recorded call on the server (string).
+** `agentComplete` **: contains summary info on the just-completed agent call. Scope: `:agent`. Detail: `:uniqueId`, unique ID of the call (string); `:talkTime`, talk time in seconds (integer); `:holdTime`, hold time in seconds (integer); `:recording`, path to the recorded call on the server (string).
 
-**`originateFailed`**: when an `originate-call` request failed. Scope: none. Detail: `:actionId`, ID of the request, as previously returned by `originate-call`.
+** `originateFailed` **: when an `originate-call` request failed. Scope: none. Detail: `:actionId`, ID of the request, as previously returned by `originate-call`.
 
 
 
