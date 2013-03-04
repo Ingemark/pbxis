@@ -54,7 +54,7 @@ An *agent* can be registered as a *member* of a queue, which means calls will be
 
 PBXIS defines an *event channel* over which events are received by the client. The event channel is configured with two lists used to filter the events delivered to it:
 
-1. a list of *extensions*;
+1. a list of *agents*;
 2. a list of *queues*.
 
 Depending on its type, an event may have the properties `:agent` and/or `:queue`, called the *scope properties*. An event channel will receive an event iff the value of each scope property of the event exists in the corresponding list in the configuration of the event channel. So an event with neither property is received by all channels and an event with both properties is received only by channels that include both the agent and the queue in their configuration.
