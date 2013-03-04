@@ -5,7 +5,7 @@
   :repositories [["releases" {:url "http://dev.inge-mark.hr/downloads/m2"
                               :sign-releases false}]]
 
-  :dependencies [[org.clojure/clojure "1.5.0-RC17"]
+  :dependencies [[org.clojure/clojure "1.5.0"]
                  [org.clojure/core.incubator "0.1.2"]
                  [lamina "0.5.0-beta12"]
                  [org.slf4j/slf4j-api "1.7.2"]
