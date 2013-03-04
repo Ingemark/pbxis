@@ -84,16 +84,16 @@ received."
   "Executes an action against an agent's queue. This is a thin wrapper
    around an actual AMI QueueXxxAction.
 
-   type: action type, one of #{\"add\", \"pause\", \"remove\"}.
+   type: action type, one of #{:add, :pause, :remove}.
    agnt: the agent on whose behalf the action is executed.
    params: a map of action parameters:
-     \"queue\": the queue name.
-     \"memberName\": full name of the agent, to be associated with this
-                     agent in this queue.
-     \"paused\": the requested new paused-state of the agent.
+     :queue        the queue name.
+     :memberName   full name of the agent, to be associated with this
+                   agent in this queue.
+     :paused       the requested new paused-state of the agent.
 
-   The \"queue\" param applies to all actions; the \"paused\" param
-   applies to all except \"remove\", and \"memberName\" applies only to
+   The :queue param applies to all actions; the :paused param
+   applies to all except \"remove\", and :memberName applies only to
    \"add\"."
   [type agnt params]
   (send-action (u/action (<< "Queue~(u/upcase-first type)")
