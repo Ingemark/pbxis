@@ -57,23 +57,24 @@
 
 (defn originate-call
   "Issues a request to originate a call to the supplied phone number
-   and patch it through to the supplied agent's extension.
+   and patch it through to the supplied agent's extension. If the third
+   argument is provided, use it as the caller id.
 
    Returns the ID (string) of the request. The function returns
    immediately and doesn't wait for the call to be established. In the
    case of failure, an event will be received by the client referring
    to this ID.
 
-In the case of a successful call, only a an phoneNumber event will be
-received."
-  [agnt phone]
-  (loginfo (<< "(originate-call \"~{agnt}\" \"~{phone}\")"))
+   In the case of a successful call, only a phoneNumber event will be
+   received."
+  [agnt phone & [caller-id]]
+  (loginfo (<< "(originate-call \"~{agnt}\" \"~{phone}\" \"~{caller-id}\")"))
   (let [actionid (u/actionid)
         context (@config :originate-context)]
     (when (send-action (u/action "Originate"
                                  {:exten phone
                                   :channel (agnt->location agnt)
-                                  :callerId ""
+                                  :callerId (str caller-id)
                                   :actionId actionid
                                   :priority (int 1)
                                   :async true}))
