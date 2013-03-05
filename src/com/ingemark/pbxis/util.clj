@@ -13,6 +13,7 @@
   (require (lamina [core :as m] [api :as ma] [executor :as ex])
            [lamina.core.channel :as chan]
            [com.ingemark.logging :refer :all]
+           [clojure.string :as s]
            [clojure.core.strint :refer (<<)])
   (import java.util.concurrent.TimeUnit (clojure.lang Reflector RT)))
 
@@ -36,9 +37,9 @@
 (defn invoke [^String m o & args]
   (Reflector/invokeInstanceMethod o m (into-array Object args)))
 
-(defn upcase-first [s]
-  (let [^String s (if (instance? clojure.lang.Named s) (name s) (str s))]
-    (if (empty? s) "" (str (Character/toUpperCase (.charAt s 0)) (.substring s 1)))))
+(defn camelize [s] (s/replace s #"-(\w)" (comp s/upper-case second)))
+
+(defn upcamelize [s] (s/replace s #"(?:-|^)(\w)" (comp s/upper-case second)))
 
 (defn event-bean [event]
   (into (sorted-map)
@@ -54,7 +55,7 @@
   (let [a (Reflector/invokeConstructor
            (RT/classForName (<< "org.asteriskjava.manager.action.~{type}Action"))
            (object-array 0))]
-    (doseq [[k v] params] (invoke (<< "set~(upcase-first k)") a v))
+    (doseq [[k v] params] (invoke (<< "set~(upcamelize k)") a v))
     a))
 
 (defn schedule [task delay unit]

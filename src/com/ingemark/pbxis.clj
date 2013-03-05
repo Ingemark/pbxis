@@ -94,10 +94,10 @@
      :paused       the requested new paused-state of the agent.
 
    The :queue param applies to all actions; the :paused param
-   applies to all except \"remove\", and :memberName applies only to
+   applies to all except \"remove\", and :member-name applies only to
    \"add\"."
   [type agnt params]
-  (send-action (u/action (<< "Queue~(u/upcase-first type)")
+  (send-action (u/action (<< "Queue~(u/upcamelize type)")
                          (assoc params :interface (agnt->location agnt)))))
 
 (defn- q-status [q agnt]
