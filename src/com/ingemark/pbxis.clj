@@ -167,11 +167,19 @@ received."
         (publish (u/qcount-event q calls))))))
 
 (defn event-channel
-  "Sets up and returns a lamina channel that will emit
-   events related to the supplied agents and queues.
+  "agnts: a collection of agents' phone extension numbers.
+   qs: a collection of agent queue names.
 
-   agnts: a collection of agents' phone extension numbers.
-   qs: a collection of agent queue names."
+   Sets up and returns a lamina channel that will emit events related
+   to the supplied agents and queues. Depending on its type, an event
+   may have the properties :agent and/or :queue, called the \"scope
+   properties\". An event channel will receive an event iff the value
+   of each scope property of the event exists in the corresponding
+   list in the configuration of the event channel. So an event with
+   neither property is received by all channels and an event with both
+   properties is received only by channels that include both the agent
+   and the queue in their configuration.
+"
   [agnts qs]
   (loginfo (<< "(event-channel ~{agnts} ~{qs})"))
   (let [q-set (set qs), agnt-set (set agnts), eventch (m/channel)]

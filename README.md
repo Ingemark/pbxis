@@ -2,16 +2,6 @@
 
 The main purpose of the library is to connect to an Asterisk PBX server and provide filtered event streams that allow the receiver to track the state of call queues and agents. Additional features include originating calls and managing the status of agents against specific queues (log on/off, pause). Events are received over a [*lamina*](https://github.com/ztellman/lamina) channel, which makes [*aleph*](https://github.com/ztellman/aleph) a particularly convenient library to use when implementing a server on top of this library, but there is no restriction to it.
 
-The library can be used to implemented a scenario like the following:
-
-* there is a web application that agents use in their workplace;
-* *pbxis* is itself exposed as a web service;
-* the web application subscribes an agent to the *pbxis* service and passes the event-stream URL to the agent's browser;
-* the browser contacts *pbxis* directly to receive the event stream.
-
-Another use case is a supervisor application that monitors the activities of all the agents in the call center. The `examples/http` directory contains a very simple example of such an application.
-
-
 ## Feature highlights
 
 * connects to Asterisk via the Asterisk Manager Interface (AMI);
