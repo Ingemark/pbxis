@@ -54,6 +54,8 @@ Depending on its type, an event may have the properties `:agent` and/or `:queue`
 
 Events, enqueued into the event channel, are maps where the key `:type` determines event type, the keys `:agent` and `:queue` determine its scope, and the rest are event details. List of events by type:
 
+<b>`agentName`</b>: the full name of an agent, as reported via `queue-action :add` or other means. Scope: `:agent`. Detail: `:name`, agent name.
+
 <b>`extensionStatus`</b>: status of a phone device. Scope: `:agent`. Detail: `:status`, one of:
 
 - `not_inuse`: the phone is idle and ready to accept calls;
