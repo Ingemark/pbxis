@@ -37,9 +37,9 @@
 (defn invoke [^String m o & args]
   (Reflector/invokeInstanceMethod o m (into-array Object args)))
 
-(defn camelize [s] (s/replace s #"-(\w)" (comp s/upper-case second)))
+(defn camelize [s] (s/replace (name s) #"-(\w)" (comp s/upper-case second)))
 
-(defn upcamelize [s] (s/replace s #"(?:-|^)(\w)" (comp s/upper-case second)))
+(defn upcamelize [s] (s/replace (name s) #"(?:-|^)(\w)" (comp s/upper-case second)))
 
 (defn event-bean [event]
   (into (sorted-map)
