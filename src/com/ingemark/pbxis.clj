@@ -57,23 +57,24 @@
 
 (defn originate-call
   "Issues a request to originate a call to the supplied phone number
-   and patch it through to the supplied agent's extension.
+   and patch it through to the supplied agent's extension. If the third
+   argument is provided, use it as the caller id.
 
    Returns the ID (string) of the request. The function returns
    immediately and doesn't wait for the call to be established. In the
    case of failure, an event will be received by the client referring
    to this ID.
 
-In the case of a successful call, only a an phoneNumber event will be
-received."
-  [agnt phone]
-  (loginfo (<< "(originate-call \"~{agnt}\" \"~{phone}\")"))
+   In the case of a successful call, only a phoneNumber event will be
+   received."
+  [agnt phone & [caller-id]]
+  (loginfo (<< "(originate-call \"~{agnt}\" \"~{phone}\" \"~{caller-id}\")"))
   (let [actionid (u/actionid)
         context (@config :originate-context)]
     (when (send-action (u/action "Originate"
                                  {:exten phone
                                   :channel (agnt->location agnt)
-                                  :callerId ""
+                                  :callerId (str caller-id)
                                   :actionId actionid
                                   :priority (int 1)
                                   :async true}))
@@ -84,19 +85,19 @@ received."
   "Executes an action against an agent's queue. This is a thin wrapper
    around an actual AMI QueueXxxAction.
 
-   type: action type, one of #{\"add\", \"pause\", \"remove\"}.
+   type: action type, one of #{:add, :pause, :remove}.
    agnt: the agent on whose behalf the action is executed.
    params: a map of action parameters:
-     \"queue\": the queue name.
-     \"memberName\": full name of the agent, to be associated with this
-                     agent in this queue.
-     \"paused\": the requested new paused-state of the agent.
+     :queue        the queue name.
+     :memberName   full name of the agent, to be associated with this
+                   agent in this queue.
+     :paused       the requested new paused-state of the agent.
 
-   The \"queue\" param applies to all actions; the \"paused\" param
-   applies to all except \"remove\", and \"memberName\" applies only to
+   The :queue param applies to all actions; the :paused param
+   applies to all except \"remove\", and :member-name applies only to
    \"add\"."
   [type agnt params]
-  (send-action (u/action (<< "Queue~(u/upcase-first type)")
+  (send-action (u/action (<< "Queue~(u/upcamelize type)")
                          (assoc params :interface (agnt->location agnt)))))
 
 (defn- q-status [q agnt]
@@ -167,11 +168,19 @@ received."
         (publish (u/qcount-event q calls))))))
 
 (defn event-channel
-  "Sets up and returns a lamina channel that will emit
-   events related to the supplied agents and queues.
+  "agnts: a collection of agents' phone extension numbers.
+   qs: a collection of agent queue names.
 
-   agnts: a collection of agents' phone extension numbers.
-   qs: a collection of agent queue names."
+   Sets up and returns a lamina channel that will emit events related
+   to the supplied agents and queues. Depending on its type, an event
+   may have the properties :agent and/or :queue, called the \"scope
+   properties\". An event channel will receive an event iff the value
+   of each scope property of the event exists in the corresponding
+   list in the configuration of the event channel. So an event with
+   neither property is received by all channels and an event with both
+   properties is received only by channels that include both the agent
+   and the queue in their configuration.
+"
   [agnts qs]
   (loginfo (<< "(event-channel ~{agnts} ~{qs})"))
   (let [q-set (set qs), agnt-set (set agnts), eventch (m/channel)]
