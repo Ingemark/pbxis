@@ -2,7 +2,7 @@
   :description "Asterisk Call Center Adapter"
   :url "http://www.inge-mark.hr"
   :license {:name "Eclipse Public License" :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :repositories [["releases" {:url "http://dev.inge-mark.hr/downloads/m2"
+  :repositories [["releases" {:url "file:///opt/repo/downloads/downloads/m2"
                               :sign-releases false}]]
 
   :dependencies [[org.clojure/clojure "1.5.0"]
