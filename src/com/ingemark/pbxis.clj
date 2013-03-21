@@ -82,12 +82,12 @@
       actionid)))
 
 (defn queue-action
-  "Executes an action against an agent's queue. This is a thin wrapper
+  "Executes an action against a queue. This is a thin wrapper
    around an actual AMI QueueXxxAction.
 
-   type: action type, one of #{:add, :pause, :remove}.
-   agnt: the agent on whose behalf the action is executed.
+   type: action type, for example :add, :pause, :remove.
    params: a map of action parameters:
+     :agent        the agent on whose behalf the action is executed.
      :queue        the queue name.
      :memberName   full name of the agent, to be associated with this
                    agent in this queue.
@@ -96,17 +96,30 @@
    The :queue param applies to all actions; the :paused param
    applies to all except \"remove\", and :member-name applies only to
    \"add\"."
-  [type agnt params]
-  (send-action (u/action (<< "Queue~(u/upcamelize type)")
-                         (assoc params :interface (agnt->location agnt)))))
+  [type params]
+  (let [agnt (:agent params)
+        params (if agnt (assoc params :interface (agnt->location agnt)) params)]
+    (send-action (u/action (<< "Queue~(u/upcamelize type)") params))))
 
 (defn- q-status [q agnt]
   (->> (send-eventaction (u/action "QueueStatus" {:member (agnt->location agnt) :queue q}))
-       (reduce (fn [vect ev] (condp = (ev :event-type)
-                               "QueueParams" (conj vect [ev])
-                               "QueueMember" (conj (pop vect) (conj (peek vect) ev))
-                               vect))
+       (reduce (fn [vect ev]
+                 (let [type (ev :event-type), ev (dissoc ev :event-type)]
+                   (condp = type
+                     "QueueParams" (conj vect [ev])
+                     "QueueMember" (conj (pop vect) (conj (peek vect) ev))
+                     vect)))
                [])))
+
+(defn queue-status [q]
+  (for [[param-ev & member-evs] (q-status q nil)]
+    (-> param-ev
+        (dissoc :actionId :serviceLevelPerf :serviceLevel :strategy :weight :privilege)
+        (assoc :members
+          (vec (for [e member-evs]
+                 (-> e
+                     (dissoc :actionId :privilege :dynamic :static :membership :name :queue)
+                     (assoc :status (u/event->member-status e)))))))))
 
 (defn- agnt-q-status [agnt q]
   (let [[q-event member-event] (first (q-status q agnt))]

@@ -12,6 +12,6 @@
                  [ch.qos.logback/logback-classic "1.0.9"]
                  [org.asteriskjava/asterisk-java "1.0.0.M3"]]
   :exclusions [log4j/log4j]
-  :plugins [[com.ingemark/lein-release "2.0.9-SNAPSHOT"]]
+  :plugins [[com.ingemark/lein-release "2.0.9"]]
   :jvm-opts ["-Dlogback.configurationFile=logback.xml"]
   :repl-options {:init-ns com.ingemark.pbxis})
