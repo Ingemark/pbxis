@@ -112,14 +112,15 @@
                [])))
 
 (defn queue-status [q]
-  (for [[param-ev & member-evs] (q-status q nil)]
-    (-> param-ev
-        (dissoc :actionId :serviceLevelPerf :serviceLevel :strategy :weight :privilege)
-        (assoc :members
-          (vec (for [e member-evs]
-                 (-> e
-                     (dissoc :actionId :privilege :dynamic :static :membership :name :queue)
-                     (assoc :status (u/event->member-status e)))))))))
+  (vec
+   (for [[param-ev & member-evs] (q-status q nil)]
+     (-> param-ev
+         (dissoc :actionId :serviceLevelPerf :serviceLevel :strategy :weight :privilege)
+         (assoc :members
+           (vec (for [e member-evs]
+                  (-> e
+                      (dissoc :actionId :privilege :dynamic :static :membership :name :queue)
+                      (assoc :status (u/event->member-status e))))))))))
 
 (defn- agnt-q-status [agnt q]
   (let [[q-event member-event] (first (q-status q agnt))]
