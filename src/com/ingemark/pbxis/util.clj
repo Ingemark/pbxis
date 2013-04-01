@@ -41,6 +41,18 @@
 
 (defn upcamelize [s] (s/replace (name s) #"(?:-|^)(\w)" (comp s/upper-case second)))
 
+(defn proptype [b p]
+  (let [t (-> b type (.getMethod (str "get" (upcamelize p)) nil) .getReturnType)]
+    ({Boolean/TYPE Boolean, Byte/TYPE Byte, Character/TYPE Character, Short/TYPE Short,
+      Integer/TYPE Integer, Long/TYPE Long Float/TYPE Float, Double/TYPE Double} t t)))
+
+(defn coerce [b p v]
+  (condp = [(type v) (proptype b p)]
+    [String Boolean] (Boolean/valueOf ^String v)
+    [String Integer] (Integer/valueOf ^String v)
+    [String Long] (Long/valueOf ^String v)
+    v))
+
 (defn event-bean [event]
   (into (sorted-map)
         (-> (bean event)
@@ -55,7 +67,7 @@
   (let [a (Reflector/invokeConstructor
            (RT/classForName (<< "org.asteriskjava.manager.action.~{type}Action"))
            (object-array 0))]
-    (doseq [[k v] params] (invoke (<< "set~(upcamelize k)") a v))
+    (doseq [[k v] params] (invoke (<< "set~(upcamelize k)") a (coerce a k v)))
     a))
 
 (defn schedule [task delay unit]
