@@ -98,7 +98,8 @@
    \"add\"."
   [type params]
   (let [agnt (:agent params)
-        params (if agnt (assoc params :interface (agnt->location agnt)) params)]
+        params (if agnt (-> params (assoc :interface (agnt->location agnt)) (dissoc :agent))
+                   params)]
     (send-action (u/action (<< "Queue~(u/upcamelize type)") params))))
 
 (defn- q-status [q agnt]
