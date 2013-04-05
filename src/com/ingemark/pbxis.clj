@@ -121,7 +121,8 @@
            (vec (for [e member-evs]
                   (-> e
                       (dissoc :actionId :privilege :dynamic :static :membership :name :queue)
-                      (assoc :status (u/event->member-status e))))))))))
+                      (assoc :status (u/event->member-status e))
+                      (update-in [:location] u/digits)))))))))
 
 (defn- agnt-q-status [agnt q]
   (let [[q-event member-event] (first (q-status q agnt))]
