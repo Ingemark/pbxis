@@ -284,11 +284,12 @@
       (u/call-event (ami-ev :agentCalled) unique-id
                     (ami-ev :callerIdNum) (ami-ev :callerIdName))
       #"AgentComplete"
-      [(u/call-event (ami-ev :member) unique-id nil)
-       (u/agnt-event
-        (ami-ev :member) "agentComplete"
-        :uniqueId unique-id :talkTime (ami-ev :talkTime) :holdTime (ami-ev :holdTime)
-        :recording (-?> ami-ev :variables (.get "FILEPATH")))]
+      (let [agnt (u/digits (ami-ev :member))]
+        [(u/call-event agnt unique-id nil)
+         (u/agnt-event
+          agnt "agentComplete"
+          :uniqueId unique-id :talkTime (ami-ev :talkTime) :holdTime (ami-ev :holdTime)
+          :recording (-?> ami-ev :variables (.get "FILEPATH")))])
       #"OriginateResponse"
       (let [action-id (ami-ev :actionId)]
         (if (= (ami-ev :response) "Success")
