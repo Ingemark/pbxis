@@ -12,11 +12,11 @@
                  [ch.qos.logback/logback-classic "1.0.9"]
                  [org.asteriskjava/asterisk-java "1.0.0.M3"]]
   :exclusions [log4j/log4j]
-  :aliases {"to-release-version" ["thrush" "version-update" ":release," "edit-version"]
-            "to-snapshot" ["thrush" "version-update" ":new-snapshot," "edit-version"]
-            "release" ["xdo" "git-check-clean," "to-release-version,"
-                       "deploy" "clojars," "commit" "New release," "tag,"
-                       "to-snapshot," "commit" "New snapshot," "push"]}
+  :aliases {"release" ["xdo" "git-check-clean"
+                       ["thrush" "version-update" ":release," "edit-version"]
+                       ["deploy" "clojars"] ["commit" "New release"] "tag"
+                       ["thrush" "version-update" ":new-snapshot," "edit-version"]
+                       ["commit" "New snapshot"] "push"]}
   :plugins [[lein-nix "0.1.9"]]
   :jvm-opts ["-Dlogback.configurationFile=logback.xml"]
   :repl-options {:init-ns com.ingemark.pbxis})
