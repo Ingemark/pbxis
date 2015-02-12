@@ -137,7 +137,7 @@
                  (send-eventaction (u/action "Status" {}))
                  :let [ag (u/digits bridgedChannel)]
                  :when (and bridgedUniqueId (if agnt (= ag agnt) true))]
-             [[agnt bridgedUniqueId] (or callerId "")]))]
+             [[ag bridgedUniqueId] (or callerId "")]))]
     (if agnt (r agnt) r)))
 
 (defn- publish [event] (enq @event-hub event))
