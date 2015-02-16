@@ -81,6 +81,33 @@
       (u/remember actionid phone ORIGINATE-CALL-TIMEOUT-SECONDS)
       actionid)))
 
+(defn redirect-call
+  "Redirects (transfers) a call to another extension.
+  First argument is either the raw name of the channel which to
+  redirect to the new destination, or an agent's extension number.
+  In the latter case a channel belonging to the agent will be
+  looked up and its bridged channel will be the one that gets
+  redirected. If there are several channels belonging to the agent,
+  a map of the shape {:candidateChannels [{:channel, :callerIdNum}, ...]}
+  will be returned, listing all the agent's bridged channels and the
+  associated caller IDs of their remote parties. This can then be
+  used to call this function again with the chosen channel name.
+
+  Note: the type of all parameters is string."
+  [agnt-or-chan destination]
+  (let [status-result (send-eventaction (u/action "Status" {}))
+        the-channel (some #{agnt-or-chan} (map :channel status-result))
+        candidate-channels (for [a status-result
+                                 :when (= (u/channel-name->exten (a :bridgedChannel))
+                                         agnt-or-chan)]
+                             (select-keys a [:channel :callerIdNum]))
+        redirect #(send-action (u/action "Redirect" {:channel % :exten destination}))]
+    (cond
+      the-channel (redirect the-channel)
+      (not (first candidate-channels)) nil
+      (next candidate-channels) {:candidateChannels candidate-channels}
+      :else (redirect (:channel (first candidate-channels))))))
+
 (defn queue-action
   "Executes an action against a queue. This is a thin wrapper
    around an actual AMI QueueXxxAction.
