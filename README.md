@@ -33,6 +33,10 @@ While connected, these functions are supported:
 
 `originate-call`: place a phone call from a source.
 
+`redirect-call`: redirect an existing call to another destination.
+
+`park-and-announce`: park an existing call and announce (in voice) the extension where it can be retrieved.
+
 `queue-action`: manage agent status with respect to a particular agent queue.
 
 
