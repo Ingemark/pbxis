@@ -81,6 +81,18 @@
       (u/remember actionid phone ORIGINATE-CALL-TIMEOUT-SECONDS)
       actionid)))
 
+(defn find-channels [agnt-or-chan]
+  (let [status-result (send-eventaction (u/action "Status" {}))
+        the-result (some #(and (= (:channel %) agnt-or-chan) %) status-result)
+        candidate-channels (filter #(= (u/channel-name->exten (% :bridgedChannel)) agnt-or-chan)
+                             status-result)
+        mapper #(-> {:agentChannel (:bridgedChannel %)
+                     :bridgedChannel (:channel %)
+                     :callerIdNum (:callerIdNum %)})]
+    (if the-result
+      [(mapper the-result)]
+      (map mapper candidate-channels))))
+
 (defn redirect-call
   "Redirects (transfers) a call to another extension.
   First argument is either the raw name of the channel which to
@@ -88,25 +100,50 @@
   In the latter case a channel belonging to the agent will be
   looked up and its bridged channel will be the one that gets
   redirected. If there are several channels belonging to the agent,
-  a map of the shape {:candidateChannels [{:channel, :callerIdNum}, ...]}
-  will be returned, listing all the agent's bridged channels and the
-  associated caller IDs of their remote parties. This can then be
-  used to call this function again with the chosen channel name.
+  a map of the shape
+  {:candidates [{:agentChannel, :bridgedChannel, :callerIdNum}, ...]}
+  will be returned, listing all the agent's channels, their bridged
+  channels, and the associated caller IDs of the remote parties. This
+  can then be used to call this function again with the chosen
+  channel name.
 
   Note: the type of all parameters is string."
   [agnt-or-chan destination]
-  (let [status-result (send-eventaction (u/action "Status" {}))
-        the-channel (some #{agnt-or-chan} (map :channel status-result))
-        candidate-channels (for [a status-result
-                                 :when (= (u/channel-name->exten (a :bridgedChannel))
-                                         agnt-or-chan)]
-                             (select-keys a [:channel :callerIdNum]))
-        redirect #(send-action (u/action "Redirect" {:channel % :exten destination}))]
+  (let [candidates (find-channels agnt-or-chan)]
     (cond
-      the-channel (redirect the-channel)
-      (not (first candidate-channels)) nil
-      (next candidate-channels) {:candidateChannels candidate-channels}
-      :else (redirect (:channel (first candidate-channels))))))
+      (not (first candidates)) nil
+      (next candidates) {:candidates candidates}
+      :else (send-action (u/action "Redirect"
+                           {:channel (-> candidates first :bridgedChannel)
+                            :exten destination})))))
+
+(defn park-and-announce
+  "Parks a call so it can be retrieved by calling the returned
+  extension number. The number is also announced in voice on the
+  channel that was bridged to the parked channel. If the call is
+  not retrieved within ORIGINATE-CALL-TIMEOUT-SECONDS, the call is
+  returned to the owner of the bridged channel. The supplied
+  argument is either the raw name of the channel to park, or an
+  agent's extension number (a string in both cases). In the latter
+  case a channel belonging to the agent will be looked up and its
+  bridged channel is the one that gets parked. If there are several
+  channels belonging to the agent, a map of the shape
+  {:candidates [{:agentChannel, :bridgedChannel, :callerIdNum}, ...]}
+  will be returned, listing all the agent's channels, their bridged
+  channels, and the associated caller IDs of the remote parties. This
+  can then be used to call this function again with the chosen
+  channel name."
+  [agnt-or-chan]
+  (let [candidates (find-channels agnt-or-chan)]
+    (cond
+      (not (first candidates)) nil
+      (next candidates) {:candidates candidates}
+      :else (let [c (first candidates)]
+              (send-action (u/action "Park"
+                             {:channel (c :bridgedChannel)
+                              :channel2 (c :agentChannel)
+                              :timeout (int (* 1000 ORIGINATE-CALL-TIMEOUT-SECONDS))})
+                5000)))))
 
 (defn queue-action
   "Executes an action against a queue. This is a thin wrapper
