@@ -83,7 +83,7 @@
 
 (defn find-channels [agnt-or-chan]
   (let [status-result (send-eventaction (u/action "Status" {}))
-        the-result (some #(and (= (:channel %) agnt-or-chan) %) status-result)
+        the-result (some #(when (= (:channel %) agnt-or-chan) %) status-result)
         candidate-channels (filter #(= (u/channel-name->exten (% :bridgedChannel)) agnt-or-chan)
                              status-result)
         mapper #(-> {:agentChannel (:bridgedChannel %)
@@ -118,10 +118,10 @@
                             :exten destination})))))
 
 (defn park-and-announce
-  "Parks a call so it can be retrieved by calling the returned
-  extension number. The number is also announced in voice on the
+  "Parks a call so it can be retrieved by calling another
+  extension number. The number is announced in voice on the
   channel that was bridged to the parked channel. If the call is
-  not retrieved within ORIGINATE-CALL-TIMEOUT-SECONDS, the call is
+  not retrieved within ORIGINATE-CALL-TIMEOUT-SECONDS, it is
   returned to the owner of the bridged channel. The supplied
   argument is either the raw name of the channel to park, or an
   agent's extension number (a string in both cases). In the latter
