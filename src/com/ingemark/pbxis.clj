@@ -69,8 +69,7 @@
    received."
   [agnt phone & [caller-id]]
   (loginfo (<< "(originate-call \"~{agnt}\" \"~{phone}\" \"~{caller-id}\")"))
-  (let [actionid (u/actionid)
-        context (@config :originate-context)]
+  (let [actionid (u/actionid)]
     (when (send-action (u/action "Originate"
                                  {:exten phone
                                   :channel (agnt->location agnt)
