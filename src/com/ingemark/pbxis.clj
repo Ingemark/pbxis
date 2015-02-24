@@ -462,11 +462,19 @@
      :location-prefix -- string to prepend to agent's extension
        in order to form the agent \"location\" as known to
        Asterisk. This is typically \"SCCP/\", \"SIT/\" or similar.
+
+     :originate-context -- the value to use for the context attribute on the
+       AMI Originate action. Default is \"default\".
+
+     :redirect-context -- the value to use for the context attribute on the
+       AMI Redirect action. Default is \"default\".
 "
   [host username password cfg]
   (locking lock
     (reset! config (spy "PBXIS config"
-                        (merge default-config (select-keys cfg [:location-prefix]))))
+                        (merge default-config (select-keys cfg [:location-prefix
+                                                                :originate-context
+                                                                :redirect-context]))))
     (let [amich (new-ami-channel)
           amiconn (reset! ami-connection
                           (-> (ManagerConnectionFactory. host username password)
