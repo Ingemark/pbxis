@@ -11,11 +11,11 @@
 
 (ns com.ingemark.pbxis
   (require [com.ingemark.pbxis.util :as u :refer [enq >?>]]
-   (lamina [core :as m] [executor :as ex])
-           [clojure.set :as set] [com.ingemark.logging :refer :all]
-           (clojure.core [incubator :refer (-?> -?>> dissoc-in)] [strint :refer (<<)]))
+    (lamina [core :as m] [executor :as ex])
+    [clojure.set :as set] [com.ingemark.logging :refer :all] [clojure.walk :as walk]
+    (clojure.core [incubator :refer (-?> -?>> dissoc-in)] [strint :refer (<<)]))
   (import (org.asteriskjava.manager ManagerConnectionFactory ManagerEventListener)
-          java.util.concurrent.TimeUnit))
+    java.util.concurrent.TimeUnit))
 
 (def default-config {:location-prefix "SIP/"
                      :originate-context "default"
@@ -60,8 +60,14 @@
 
 (defn originate-call
   "Issues a request to originate a call to the supplied phone number
-   and patch it through to the supplied agent's extension. If the third
-   argument is provided, use it as the caller id.
+   and patch it through to the supplied agent's extension.
+
+   If a :caller-id named argument is provided, use it as the callerId
+   parameter on the Originate action.
+
+   If a :variables named argument is provided, its value must be a map.
+   The map's keys will be stringified and the result will be used as
+   the variables parameter on the Originate action.
 
    Returns the ID (string) of the request. The function returns
    immediately and doesn't wait for the call to be established. In the
@@ -70,7 +76,7 @@
 
    In the case of a successful call, only a phoneNumber event will be
    received."
-  [agnt phone & [caller-id]]
+  [agnt phone & {:keys [caller-id variables]}]
   (loginfo (<< "(originate-call \"~{agnt}\" \"~{phone}\" \"~{caller-id}\")"))
   (let [actionid (u/actionid)]
     (when (send-action (u/action "Originate"
@@ -80,6 +86,7 @@
                                   :actionId actionid
                                   :priority (int 1)
                                   :context (@config :originate-context)
+                                  :variables (into {} (walk/stringify-keys variables))
                                   :async true}))
       (u/remember actionid phone ORIGINATE-CALL-TIMEOUT-SECONDS)
       actionid)))
@@ -472,9 +479,10 @@
   [host username password cfg]
   (locking lock
     (reset! config (spy "PBXIS config"
-                        (merge default-config (select-keys cfg [:location-prefix
-                                                                :originate-context
-                                                                :redirect-context]))))
+                        (merge default-config
+                          (select-keys cfg [:location-prefix
+                                            :originate-context
+                                            :redirect-context]))))
     (let [amich (new-ami-channel)
           amiconn (reset! ami-connection
                           (-> (ManagerConnectionFactory. host username password)
