@@ -17,7 +17,10 @@
   (import (org.asteriskjava.manager ManagerConnectionFactory ManagerEventListener)
           java.util.concurrent.TimeUnit))
 
-(def default-config {:location-prefix "SCCP/"})
+(def default-config {:location-prefix "SIP/"
+                     :originate-context "default"
+                     :redirect-context "default"})
+
 (def FORGET-PHONENUM-DELAY [3 TimeUnit/HOURS])
 (def ^:const DUE-EVENT-WAIT-SECONDS 5)
 (def ^:const ORIGINATE-CALL-TIMEOUT-SECONDS 180)
@@ -76,6 +79,7 @@
                                   :callerId (str caller-id)
                                   :actionId actionid
                                   :priority (int 1)
+                                  :context (@config :originate-context)
                                   :async true}))
       (u/remember actionid phone ORIGINATE-CALL-TIMEOUT-SECONDS)
       actionid)))
@@ -114,7 +118,9 @@
       (next candidates) {:candidates candidates}
       :else (send-action (u/action "Redirect"
                            {:channel (-> candidates first :bridgedChannel)
-                            :exten destination})))))
+                            :exten destination
+                            :context (@config :redirect-context)
+                            :priority (int 1)})))))
 
 (defn park-and-announce
   "Parks a call so it can be retrieved by calling another
