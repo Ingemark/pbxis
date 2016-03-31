@@ -371,6 +371,8 @@
         (if (= (ami-ev :response) "Success")
           (u/remember unique-id (u/recall action-id) DUE-EVENT-WAIT-SECONDS)
           (u/agnt-event (ami-ev :exten) "originateFailed" :actionId action-id)))
+      #"ParkedCall"
+      (u/make-event :caller-id (ami-ev :callerId) "parkCall" :parked-ext (ami-ev :exten))
       #"ExtensionStatus"
       (u/agnt-event (u/digits (ami-ev :exten)) "extensionStatus"
                     :status (u/int->exten-status (ami-ev :status)))
