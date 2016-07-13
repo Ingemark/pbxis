@@ -375,6 +375,10 @@
       (u/make-event :caller-id (ami-ev :callerId) "parkedCall" :channel (ami-ev :channel) :parked-ext (ami-ev :exten))
       #"ParkedCallGiveUp"
       (u/make-event :caller-id (ami-ev :callerId) "parkedCallGiveUp" :channel (ami-ev :channel) :parked-ext (ami-ev :exten))
+      #"UnparkedCall"
+      (u/make-event :caller-id (ami-ev :callerId) "unParkedCall" :channel (ami-ev :channel) :parked-ext (ami-ev :exten))
+      #"ParkedCallTimeOut"
+      (u/make-event :caller-id (ami-ev :callerId) "parkedCallTimeOut" :channel (ami-ev :channel) :parked-ext (ami-ev :exten))
       #"ExtensionStatus"
       (u/agnt-event (u/digits (ami-ev :exten)) "extensionStatus"
                     :status (u/int->exten-status (ami-ev :status)))
