@@ -14,7 +14,8 @@
   :exclusions [log4j/log4j]
   :aliases {"release" ["xdo" "git-check-clean"
                        ["thrush" "version-update" ":release," "edit-version"]
-                       ["deploy" "clojars"] ["commit" "New release"] "tag"
+                       ;["deploy" "clojars"] 
+                       ["commit" "New release"] "tag"
                        ["thrush" "version-update" ":new-snapshot," "edit-version"]
                        ["commit" "New snapshot"] "push"]}
   :plugins [[lein-nix "0.1.9"]]
