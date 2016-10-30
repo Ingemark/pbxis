@@ -1,4 +1,4 @@
-(defproject com.ingemark/pbxis "1.0.3"
+(defproject com.ingemark/pbxis "1.0.4-SNAPSHOT"
   :description "Asterisk Call Center "
   :url "https://github.com/Inge-mark/pbxis"
   :license {:name "Eclipse Public License" :url "http://www.eclipse.org/legal/epl-v10.html"}
@@ -10,7 +10,7 @@
                  [org.slf4j/slf4j-api "1.7.2"]
                  [org.slf4j/log4j-over-slf4j "1.7.2"]
                  [ch.qos.logback/logback-classic "1.0.9"]
-                 [org.asteriskjava/asterisk-java "1.0.0.M3"]]
+                 [org.asteriskjava/asterisk-java "2.0.0.alpha-b1"]]
   :exclusions [log4j/log4j]
   :aliases {"release" ["xdo" "git-check-clean"
                        ["thrush" "version-update" ":release," "edit-version"]
