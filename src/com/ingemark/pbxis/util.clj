@@ -104,6 +104,7 @@
     (cond (nil? p) "loggedoff"
           (= 4 s) "invalid"
           (true? p) "paused"
+          (false? p) "active"
           :else "loggedon"
           #_(condp = s
               0 "unknown"
