@@ -248,9 +248,8 @@
           (publish (u/name-event agnt name))
           (publish (u/member-event agnt q status)))
         (if calls
-          (when-let [active-call (first calls)]
-            (enq ch (u/call-event agnt (key active-call) (-> active-call val :number)
-                                  (-> active-call val :name))))
+          (doseq [[unique-id c] calls]
+            (enq ch (u/call-event agnt unique-id (c :number))))
           (publish (u/agnt-event agnt "callsInProgress" :calls (calls-in-progress agnt))))
         (enq ch (u/agnt-event agnt "extensionStatus" :status
                               (or (:exten-status state) (exten-status agnt)))))
@@ -335,20 +334,18 @@
     (for [[agnt calls] calls-in-progress] (u/agnt-event agnt "callsInProgress" :calls calls))))
 
 (defn- ami->pbxis [ami-ev]
-  (let [t (:event-type ami-ev), unique-id (:uniqueId ami-ev)]
+  (let [t (:event-type ami-ev)
+        unique-id (:channel ami-ev)]
     (condp re-matches t
       #"Connect"
       (ex/task (refresh-all-state))
-      #"Join|Leave"
+      #"QueueCaller(Join|Leave)"
       (u/qcount-event (:queue ami-ev) (:count ami-ev))
-      #"Dial"
-      (when (= (ami-ev :subEvent) "Begin")
-        [(let [amich (ami-ev :channel)]
-           (when-not (.startsWith amich "Local")
-             (u/call-event amich (ami-ev :srcUniqueId) (-> ami-ev :dialString u/digits))))
-         (u/call-event (ami-ev :destination) (ami-ev :destUniqueId)
-                       (or (u/recall (ami-ev :srcUniqueId)) (ami-ev :callerIdNum))
-                       (ami-ev :callerIdName))])
+      #"Bridge"
+      [(when-let [agnt (u/channel-name->exten (ami-ev :channel1))]
+         (u/call-event agnt (ami-ev :channel1) (ami-ev :callerId2)))
+       (when-let [agnt (u/channel-name->exten (ami-ev :channel2))]
+         (u/call-event agnt (ami-ev :channel2) (ami-ev :callerId1)))]
       #"Hangup"
       (u/call-event (ami-ev :channel) unique-id nil)
       #"AgentRingNoAnswer"
@@ -363,22 +360,22 @@
       (let [agnt (u/digits (ami-ev :member))]
         [(u/call-event agnt unique-id nil)
          (u/agnt-event
-          agnt "agentComplete"
-          :uniqueId unique-id :talkTime (ami-ev :talkTime) :holdTime (ami-ev :holdTime)
-          :recording (-?> ami-ev :variables (.get "FILEPATH")))])
+           agnt "agentComplete"
+           :uniqueId unique-id :talkTime (ami-ev :talkTime) :holdTime (ami-ev :holdTime)
+           :recording (-?> ami-ev :variables (.get "FILEPATH")))])
       #"OriginateResponse"
       (let [action-id (ami-ev :actionId)]
         (if (= (ami-ev :response) "Success")
           (u/remember unique-id (u/recall action-id) DUE-EVENT-WAIT-SECONDS)
           (u/agnt-event (ami-ev :exten) "originateFailed" :actionId action-id)))
       #"ParkedCall"
-      (u/make-event :caller-id (ami-ev :callerId) "parkedCall" :channel (ami-ev :channel) :parked-ext (ami-ev :exten))
+      (u/make-event :caller-id (ami-ev :callerId) "parkedCall" :channel (ami-ev :channel) :parked-ext (ami-ev :parkingSpace))
       #"ParkedCallGiveUp"
-      (u/make-event :caller-id (ami-ev :callerId) "parkedCallGiveUp" :channel (ami-ev :channel) :parked-ext (ami-ev :exten))
+      (u/make-event :caller-id (ami-ev :callerId) "parkedCallGiveUp" :channel (ami-ev :channel) :parked-ext (ami-ev :parkingSpace))
       #"UnparkedCall"
-      (u/make-event :caller-id (ami-ev :callerId) "unParkedCall" :channel (ami-ev :channel) :parked-ext (ami-ev :exten))
+      (u/make-event :caller-id (ami-ev :callerId) "unParkedCall" :channel (ami-ev :channel) :parked-ext (ami-ev :parkingSpace))
       #"ParkedCallTimeOut"
-      (u/make-event :caller-id (ami-ev :callerId) "parkedCallTimeOut" :channel (ami-ev :channel) :parked-ext (ami-ev :exten))
+      (u/make-event :caller-id (ami-ev :callerId) "parkedCallTimeOut" :channel (ami-ev :channel) :parked-ext (ami-ev :parkingSpace))
       #"ExtensionStatus"
       (u/agnt-event (u/digits (ami-ev :exten)) "extensionStatus"
                     :status (u/int->exten-status (ami-ev :status)))
@@ -388,12 +385,12 @@
                          (u/event->member-status ami-ev))
          (u/name-event agnt (ami-ev :memberName))])
       #"QueueMember(Add|Remov)ed" :>>
-      #(let [agnt (ami-ev :location)]
+      #(let [agnt (ami-ev :memberName)]
          [(u/member-event (u/digits agnt) (ami-ev :queue)
                           (if (= (% 1) "Add") (u/event->member-status ami-ev) "loggedoff"))
           (u/name-event agnt (ami-ev :memberName))])
-      #"QueueMemberPaused"
-      (let [agnt (u/digits (ami-ev :location)), q (ami-ev :queue)
+      #"QueueMemberPause"
+      (let [agnt (u/digits (ami-ev :memberName)), q (ami-ev :queue)
             member-ev #(u/member-event agnt q %)]
         (if (ami-ev :paused)
           (member-ev "paused")
