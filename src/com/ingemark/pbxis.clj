@@ -91,17 +91,33 @@
       (u/remember actionid phone ORIGINATE-CALL-TIMEOUT-SECONDS)
       actionid)))
 
-(defn find-channels [agnt-or-chan]
-  (let [status-result (send-eventaction (u/action "Status" {}))
-        the-result (some #(when (= (:channel %) agnt-or-chan) %) status-result)
-        candidate-channels (filter #(= (u/channel-name->exten (% :bridgedChannel)) agnt-or-chan)
-                             status-result)
-        mapper #(-> {:agentChannel (:bridgedChannel %)
-                     :bridgedChannel (:channel %)
-                     :callerIdNum (:callerIdNum %)})]
-    (if the-result
-      [(mapper the-result)]
-      (map mapper candidate-channels))))
+(defn- bridged-channels []
+  (group-by
+    #(% :bridgeId)
+    (filter #(and (contains? % :bridgeId)
+                  (not (empty? (% :bridgeId))))
+            (send-eventaction (u/action "Status" {})))))
+
+(defn find-channels
+  "Finds all bridged channels which on one side has channel connected
+  to the provided extension. Input parameter extension is of a string
+  type and function return an array of maps of the shape
+  [{:agentChannel, :bridgedChannel, :callerIdNum}, ...]"
+  [extension]
+  (let [extension-check #(= (u/channel-name->exten (% :channel)) extension)]
+    (reduce
+      (fn [m [k v]]
+        (when (some extension-check v)
+          (conj m
+                (reduce
+                  (fn [x i]
+                    (if (extension-check i)
+                      (assoc x :agentChannel (i :channel)
+                               :agent (u/channel-name->exten (i :channel)))
+                      (assoc x :bridgedChannel (i :channel)
+                               :callerIdNum (i :callerIdNum))))
+                  {} v))))
+      [] (bridged-channels))))
 
 (defn redirect-call
   "Redirects (transfers) a call to another extension.
