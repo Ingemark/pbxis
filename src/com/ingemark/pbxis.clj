@@ -206,15 +206,20 @@
                    :name (:memberName member-event)})))
 
 (defn- calls-in-progress [& [agnt]]
-  (let [r (reduce
-           #(apply assoc-in %1 %2)
-           {}
-           (for [{:keys [bridgedChannel bridgedUniqueId callerId event-type]}
-                 (send-eventaction (u/action "Status" {}))
-                 :let [ag (u/digits bridgedChannel)]
-                 :when (and bridgedUniqueId (if agnt (= ag agnt) true))]
-             [[ag bridgedUniqueId] (or callerId "")]))]
-    (if agnt (r agnt) r)))
+  (let [bridged (bridged-channels)
+        active-channels (reduce (fn [a1 k]
+                                  (let [maps (get bridged k)]
+                                    (concat a1
+                                            [(assoc (first maps) :otherSideCallNum
+                                                                 ((second maps) :callerIdNum))
+                                             (assoc (second maps) :otherSideCallNum
+                                                                  ((first maps) :callerIdNum))])))
+                                [] (keys bridged))]
+    (map (fn [x] [[(u/channel-name->exten (x :channel))
+                   (x :channel)] (x :otherSideCallNum)])
+         (if agnt
+           (filter #(= agnt (u/channel-name->exten (% :channel))) active-channels)
+           active-channels))))
 
 (defn- publish [event] (enq @event-hub event))
 
