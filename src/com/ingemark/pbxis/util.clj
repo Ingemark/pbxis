@@ -118,7 +118,7 @@
 
 (defn digits [s] (re-find #"\d+" (or s "")))
 
-(defn channel-name->exten [s] (second (re-find #"/(\d+)-" (or s ""))))
+(defn channel-name->exten [s] (second (re-find #"SIP/(\d+)-" (or s ""))))
 
 (defn make-event [target-type target event-type & {:as data}]
   (merge {:type event-type, target-type target} data))
