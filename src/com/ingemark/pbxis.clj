@@ -378,11 +378,11 @@
       (u/call-event (ami-ev :agentCalled) unique-id
                     (ami-ev :callerIdNum) (ami-ev :callerIdName))
       #"AgentComplete"
-      (let [agnt (u/digits (ami-ev :member))]
+      (let [agnt (u/digits (ami-ev :memberName))]
         [(u/call-event agnt unique-id nil)
          (u/agnt-event
            agnt "agentComplete"
-           :uniqueId unique-id :talkTime (ami-ev :talkTime) :holdTime (ami-ev :holdTime)
+           :uniqueId (ami-ev :destChannel) :talkTime (ami-ev :talkTime) :holdTime (ami-ev :holdTime)
            :recording (-?> ami-ev :variables (.get "FILEPATH")))])
       #"OriginateResponse"
       (let [action-id (ami-ev :actionId)]
@@ -401,17 +401,17 @@
       (u/agnt-event (u/digits (ami-ev :exten)) "extensionStatus"
                     :status (u/int->exten-status (ami-ev :status)))
       #"QueueMemberStatus"
-      (let [agnt (ami-ev :location)]
+      (let [agnt (ami-ev :interface)]
         [(u/member-event (u/digits agnt) (ami-ev :queue)
                          (u/event->member-status ami-ev))
          (u/name-event agnt (ami-ev :memberName))])
       #"QueueMember(Add|Remov)ed" :>>
-      #(let [agnt (ami-ev :memberName)]
+      #(let [agnt (ami-ev :interface)]
          [(u/member-event (u/digits agnt) (ami-ev :queue)
                           (if (= (% 1) "Add") (u/event->member-status ami-ev) "loggedoff"))
           (u/name-event agnt (ami-ev :memberName))])
       #"QueueMemberPause"
-      (let [agnt (u/digits (ami-ev :memberName)), q (ami-ev :queue)
+      (let [agnt (u/digits (ami-ev :interface)), q (ami-ev :queue)
             member-ev #(u/member-event agnt q %)]
         (if (ami-ev :paused)
           (member-ev "paused")
