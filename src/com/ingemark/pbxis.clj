@@ -414,7 +414,7 @@
     (locking lock
       (condp = (:type e)
         "callsInProgress"
-        (let [curr-calls (@agnt-calls agnt)]
+        (when-let [curr-calls (@agnt-calls agnt)]
           (doseq [unique-id (keys (apply dissoc curr-calls (keys (e :calls))))]
             (publish (u/call-event agnt unique-id nil)))
           (doseq [[unique-id phone-num] (apply dissoc (e :calls) (keys curr-calls))]
