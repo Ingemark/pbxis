@@ -204,6 +204,32 @@
                      vect)))
                [])))
 
+(defn- publish [event] (enq @event-hub event))
+
+(defn publish-q-summary-status []
+  (let [qdata (->> (send-eventaction (u/action "QueueStatus" {}))
+                   (filter #(= (% :event-type) "QueueParams"))
+                   (reduce (fn [m x] (assoc m (x :queue) {:abandoned        (x :abandoned)
+                                                          :completed        (x :completed)
+                                                          :serviceLevel     (x :serviceLevel)
+                                                          :serviceLevelPerf (x :serviceLevelPerf)}))
+                           {}))]
+    (doseq
+      [e (->> (send-eventaction (u/action "QueueSummary" {}))
+              (filter #(= (% :event-type) "QueueSummary"))
+              (reduce (fn [v x] (conj v (merge x (qdata (x :queue))))) [])
+              (map #(u/make-event :queue (% :queue) "QueueSummary"
+                                  :available (% :available)
+                                  :holdTime (% :holdTime)
+                                  :loggedIn (% :loggedIn)
+                                  :longestHoldTime (% :longestHoldTime)
+                                  :talkTime (% :talkTime)
+                                  :abandoned (% :abandoned)
+                                  :completed (% :completed)
+                                  :serviceLevel (% :serviceLevel)
+                                  :serviceLevelPerf (% :serviceLevelPerf))))]
+      (publish e))))
+
 (defn queue-status [q]
   (vec
    (for [[param-ev & member-evs] (q-status q nil)]
@@ -237,7 +263,6 @@
            (filter #(= agnt (u/channel-name->exten (% :channel))) active-channels)
            active-channels))))
 
-(defn- publish [event] (enq @event-hub event))
 
 (defn incref [agnts]
   (swap! agnt-state (fn [st] (reduce (fn [st agnt] (update-in st [agnt :refcount] #(inc (or % 0))))
