@@ -207,7 +207,13 @@
 (defn- publish [event] (enq @event-hub event))
 
 (defn publish-q-summary-status []
-  (let [qdata (->> (send-eventaction (u/action "QueueStatus" {}))
+  (let [qstatus (send-eventaction (u/action "QueueStatus" {}))
+        adata (->> qstatus (filter #(= (% :event-type) "QueueMember"))
+                   (map #(select-keys % [:queue :incall :callsTaken
+                                         :lastCall :paused :memberName
+                                         :location]))
+                   (group-by :queue))
+        qdata (->> qstatus
                    (filter #(= (% :event-type) "QueueParams"))
                    (reduce (fn [m x] (assoc m (x :queue) {:abandoned        (x :abandoned)
                                                           :completed        (x :completed)
@@ -228,7 +234,9 @@
                                   :completed (% :completed)
                                   :serviceLevel (% :serviceLevel)
                                   :serviceLevelPerf (% :serviceLevelPerf))))]
-      (publish e))))
+      (publish e))
+    (doseq [e adata]
+      (publish (u/make-event :queue (first e) "MemberSummary" :members (second e))))))
 
 (defn queue-status [q]
   (vec
@@ -318,15 +326,16 @@
    properties is received only by channels that include both the agent
    and the queue in their configuration.
 "
-  [agnts qs]
-  (loginfo (<< "(event-channel ~{agnts} ~{qs})"))
+  [agnts qs summaryEvents]
+  (loginfo (<< "(event-channel ~{agnts} ~{qs} ~{summaryEvents})"))
   (let [q-set (set qs), agnt-set (set agnts), eventch (m/channel)]
     (m/on-closed eventch #(decref agnts))
     (incref agnts)
     (u/leech (m/filter*
-              #(let [{:keys [agent queue]} %]
+              #(let [{:keys [agent queue type]} %]
                  (and (or (nil? agent) (agnt-set agent))
-                      (or (nil? queue) (q-set queue))))
+                      (or (nil? queue) (q-set queue))
+                      (or (nil? (re-matches #".*Summary" type)) summaryEvents)))
               @event-hub)
              eventch)
     (send-introductory-events eventch agnts qs)
