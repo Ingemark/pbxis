@@ -35,6 +35,8 @@
 
 (defonce ^:private ami-connection (atom nil))
 
+(defonce ^:private ami-conn-factory (atom nil))
+
 (defonce ^:private event-hub (atom nil))
 
 (defonce ^:private agnt-calls (atom {}))
@@ -409,10 +411,10 @@
       (when-let [agnt (some #(when ((val %) unique-id) (key %)) @agnt-calls)]
         (u/call-event agnt unique-id nil))
       #"AgentCalled"
-      (u/call-event (ami-ev :agentCalled) unique-id
+      (u/call-event (u/channel-name->exten (ami-ev :destChannel)) unique-id
                     (ami-ev :callerIdNum) (ami-ev :callerIdName))
       #"AgentComplete"
-      (let [agnt (u/digits (ami-ev :memberName))]
+      (let [agnt (u/channel-name->exten (ami-ev :destChannel))]
         [(u/call-event agnt unique-id nil)
          (u/agnt-event
            agnt "agentComplete"
@@ -544,8 +546,10 @@
                                             :originate-context
                                             :redirect-context]))))
     (let [amich (new-ami-channel)
+          amiconnfactory (reset! ami-conn-factory
+                                   (ManagerConnectionFactory. host username password))
           amiconn (reset! ami-connection
-                          (-> (ManagerConnectionFactory. host username password)
+                          (-> amiconnfactory
                               .createManagerConnection))]
       (reset! event-hub (new-event-hub amich))
       (doto amiconn
