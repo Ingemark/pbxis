@@ -406,7 +406,7 @@
       #"Hangup"
       (u/call-event (ami-ev :channel) unique-id nil)
       #"AgentRingNoAnswer"
-      (u/call-event (ami-ev :member) unique-id nil)
+      (u/call-event (u/channel-name->exten (ami-ev :destChannel)) unique-id nil)
       #"QueueCallerAbandon"
       (when-let [agnt (some #(when ((val %) unique-id) (key %)) @agnt-calls)]
         (u/call-event agnt unique-id nil))
@@ -419,7 +419,7 @@
          (u/agnt-event
            agnt "agentComplete"
            :uniqueId (ami-ev :destChannel) :talkTime (ami-ev :talkTime) :holdTime (ami-ev :holdTime)
-           :recording (-?> ami-ev :variables (.get "FILEPATH")))])
+           :recording (ami-ev :uniqueId))])
       #"OriginateResponse"
       (let [action-id (ami-ev :actionId)]
         (if (= (ami-ev :response) "Success")
