@@ -109,7 +109,8 @@
   (let [extension-check #(= (u/channel-name->exten (% :channel)) extension)]
     (reduce
       (fn [m [k v]]
-        (when (some extension-check v)
+        (if-not (some extension-check v)
+          m
           (conj m
                 (reduce
                   (fn [x i]

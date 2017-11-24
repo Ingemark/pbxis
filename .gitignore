@@ -3,3 +3,5 @@ pom.xml*
 target
 logs
 .idea
+/.nrepl-port
+/.lein-failures
