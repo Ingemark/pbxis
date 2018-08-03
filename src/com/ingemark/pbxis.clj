@@ -10,12 +10,12 @@
 ;;    limitations under the License.
 
 (ns com.ingemark.pbxis
-  (require [com.ingemark.pbxis.util :as u :refer [enq >?>]]
-    (lamina [core :as m] [executor :as ex])
-    [clojure.set :as set] [com.ingemark.logging :refer :all] [clojure.walk :as walk]
-    (clojure.core [incubator :refer (-?> -?>> dissoc-in)] [strint :refer (<<)]))
-  (import (org.asteriskjava.manager ManagerConnectionFactory ManagerEventListener)
-    java.util.concurrent.TimeUnit))
+  (:require [com.ingemark.pbxis.util :as u :refer [enq >?>]]
+            (lamina [core :as m] [executor :as ex])
+            [clojure.set :as set] [com.ingemark.logging :refer :all] [clojure.walk :as walk]
+            (clojure.core [incubator :refer (-?> -?>> dissoc-in)] [strint :refer (<<)]))
+  (:import (org.asteriskjava.manager ManagerConnectionFactory ManagerEventListener)
+           java.util.concurrent.TimeUnit))
 
 (def default-config {:location-prefix "SIP/"
                      :originate-context "default"

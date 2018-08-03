@@ -1,6 +1,6 @@
 (ns com.ingemark.logging
-  (require (clojure [stacktrace :as trc] [pprint :as pp] [string :as s]))
-  (import (org.slf4j Logger LoggerFactory)))
+  (:require (clojure [stacktrace :as trc] [pprint :as pp] [string :as s]))
+  (:import (org.slf4j Logger LoggerFactory)))
 
 (defn pprint-str [& args]
   (s/join " "

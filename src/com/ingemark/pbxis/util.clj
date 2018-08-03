@@ -10,12 +10,12 @@
 ;;    limitations under the License.
 
 (ns com.ingemark.pbxis.util
-  (require (lamina [core :as m] [api :as ma] [executor :as ex])
-           [lamina.core.channel :as chan]
-           [com.ingemark.logging :refer :all]
-           [clojure.string :as s]
-           [clojure.core.strint :refer (<<)])
-  (import java.util.concurrent.TimeUnit (clojure.lang Reflector RT)))
+  (:require (lamina [core :as m] [api :as ma] [executor :as ex])
+            [lamina.core.channel :as chan]
+            [com.ingemark.logging :refer :all]
+            [clojure.string :as s]
+            [clojure.core.strint :refer (<<)])
+  (:import java.util.concurrent.TimeUnit (clojure.lang Reflector RT)))
 
 (defonce memory (atom {}))
 
