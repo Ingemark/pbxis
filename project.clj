@@ -14,7 +14,7 @@
                  [org.slf4j/log4j-over-slf4j "1.7.25"]
                  [ch.qos.logback/logback-classic "1.2.3"]
                  [org.asteriskjava/asterisk-java "2.0.0.alpha-b1"]
-                 [org.clojure/test.check "0.9.0"]]
+                 [org.clojure/test.check "0.10.0-alpha3"]]
   :exclusions [log4j/log4j]
   :aliases {"release" ["xdo" "git-check-clean"
                        ["thrush" "version-update" ":release," "edit-version"]
