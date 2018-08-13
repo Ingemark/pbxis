@@ -13,7 +13,7 @@
                  [org.slf4j/slf4j-api "1.7.25"]
                  [org.slf4j/log4j-over-slf4j "1.7.25"]
                  [ch.qos.logback/logback-classic "1.2.3"]
-                 [org.asteriskjava/asterisk-java "2.0.0.alpha-b1"]
+                 [org.asteriskjava/asterisk-java "2.0.3"]
                  [org.clojure/test.check "0.10.0-alpha3"]]
   :exclusions [log4j/log4j]
   :aliases {"release" ["xdo" "git-check-clean"
@@ -24,4 +24,5 @@
                        ["commit" "New snapshot"] "push"]}
   :plugins [[lein-nix "0.1.9"]]
   :jvm-opts ["-Dlogback.configurationFile=logback.xml"]
-  :repl-options {:init-ns com.ingemark.pbxis})
+  :repl-options {:init-ns com.ingemark.pbxis}
+  :repositories [["asterisk-java" "https://raw.githubusercontent.com/asterisk-java/asterisk-java/mvn-repo"]])
