@@ -27,7 +27,7 @@
     (is true)))
 
 (defn ->queue-summary-events-args-generator []
-  (gen/let [q (s/gen string?)]
+  (gen/let [q (s/gen :com.ingemark.pbxis/non-empty-string)]
     (gen/tuple
      (gen/fmap (fn [[qpe qme-vec]] (cons qpe qme-vec))
                (gen/tuple (gen/fmap #(assoc % :queue q)
