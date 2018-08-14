@@ -318,8 +318,7 @@
                            {}))]
     (->> qsummary-ami-events
          (filter #(= (% :event-type) "QueueSummary"))
-         (reduce (fn [v x] (conj v (merge x (qdata (x :queue)))))
-                 [])
+         (map #(merge % (qdata (:queue %))))
          (map #(u/make-event :queue (% :queue) "QueueSummary"
                              :available        (% :available)
                              :holdTime         (% :holdTime)
