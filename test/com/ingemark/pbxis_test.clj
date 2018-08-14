@@ -12,21 +12,28 @@
 
 (def default-test-check-options {:clojure.spec.test.check/opts {:num-tests 30}})
 
-(defn check-spec [sym]
-  (when-let [failures (->> (stest/check sym default-test-check-options)
-                           (map :failure))]
-    (if-not (every? nil? failures)
-      (throw (ex-info (str "Generative test failed (see the cause for details), symbol " sym)
-                      {:symbol sym}
-                      (first (remove nil? failures)))))))
+;; This one throws exception in case of failures (causing a test error instead
+;; of a failure) because I haven't figured out a better way for Cider to pretty
+;; print the clojure.spec validation report.
+(defn- check-spec
+  ([sym]
+   (check-spec sym nil))
+  ([sym opts]
+   (when-let [failures (->> (stest/check sym (merge default-test-check-options
+                                                    opts))
+                            (map :failure))]
+     (if-not (every? nil? failures)
+       (throw (ex-info (str "Generative test failed (see the cause for details), symbol " sym)
+                       {:symbol sym}
+                       (first (remove nil? failures))))
+       (is true))))) ; this is here to avoid complaints about missing assertions
 
 (deftest check-specs
   (let [syms [`pbxis/->qmember-summary-events]]
     (doseq [sym syms]
-      (check-spec sym))
-    (is true)))
+      (check-spec sym))))
 
-(defn ->queue-summary-events-args-generator []
+(defn- ->queue-summary-events-args-generator []
   (gen/let [q (s/gen :com.ingemark.pbxis/non-empty-string)]
     (gen/tuple
      (gen/fmap (fn [[qpe qme-vec]] (cons qpe qme-vec))
@@ -39,11 +46,6 @@
                (s/gen :ami/queue-summary-event)))))
 
 (deftest qsummary-events-generative-test
-  (when-let [failures (->> (stest/check `pbxis/->qsummary-events
-                                        (merge default-test-check-options
-                                               {:gen {:com.ingemark.pbxis/->qsummary-events-args
-                                                      ->queue-summary-events-args-generator}}))
-                           (map :failure))]
-    (if-not (every? nil? failures)
-      (throw (first (remove nil? failures))))
-    (is true)))
+  (check-spec `pbxis/->qsummary-events
+              {:gen {:com.ingemark.pbxis/->qsummary-events-args
+                     ->queue-summary-events-args-generator}}))
