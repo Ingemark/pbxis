@@ -15,8 +15,7 @@
             [clojure.set :as set]
             [com.ingemark.logging :refer :all]
             [clojure.walk :as walk]
-            (clojure.core [incubator :refer (-?> -?>> dissoc-in)] [strint :refer (<<)])
-            [clojure.spec.alpha :as s])
+            (clojure.core [incubator :refer (-?> -?>> dissoc-in)] [strint :refer (<<)]))
   (:import (org.asteriskjava.manager ManagerConnectionFactory ManagerEventListener)
            java.util.concurrent.TimeUnit))
 
@@ -43,93 +42,6 @@
 (defonce ^:private event-hub (atom nil))
 
 (defonce ^:private agnt-calls (atom {}))
-
-(s/def ::non-empty-string (s/and string? (comp not clojure.string/blank?)))
-
-(s/def :ami/queue ::non-empty-string)
-(s/def :member/incall nat-int?)
-(s/def :member/callsTaken nat-int?)
-(s/def :member/lastCall nat-int?)
-(s/def :member/paused boolean?)
-(s/def :member/memberName ::non-empty-string)
-(s/def :member/location ::non-empty-string)
-(s/def :queue/available nat-int?)
-(s/def :queue/holdTime nat-int?)
-(s/def :queue/loggedIn nat-int?)
-(s/def :queue/longestHoldTime nat-int?)
-(s/def :queue/talkTime nat-int?)
-(s/def :queue/abandoned nat-int?)
-(s/def :queue/completed nat-int?)
-(s/def :queue/serviceLevel nat-int?)
-(s/def :queue/serviceLevelPerf double?)
-
-(s/def :queue-params/event-type #{"QueueParams"})
-(s/def :ami/queue-params-event
-  (s/keys :req-un [:queue-params/event-type
-                   :ami/queue
-                   :queue/abandoned
-                   :queue/completed
-                   :queue/serviceLevel
-                   :queue/serviceLevelPerf]))
-
-(s/def :queue-member/event-type #{"QueueMember"})
-(s/def :ami/queue-member-event
-  (s/keys :req-un [:queue-member/event-type
-                   :ami/queue
-                   :member/incall
-                   :member/callsTaken
-                   :member/lastCall
-                   :member/paused
-                   :member/memberName ; TODO does this field exist in AMI?
-                   :member/location]))
-
-;; Returned by AMI QueueStatusAction
-;;
-;; From the JavaDoc of asterisk-java file QueueSummaryAction.java: "For each
-;; queue a QueueParamsEvent is generated, followed by a QueueMemberEvent for
-;; each member of that queue and a QueueEntryEvent for each entry in the queue."
-;;
-;; We're ignoring QueueEntryEvent.
-(s/def :ami/queue-status-response-events
-  (s/coll-of (s/or :queue-params-event :ami/queue-params-event
-                   :queue-member-event :ami/queue-member-event)))
-
-;; Returned by AMI QueueSummaryAction
-(s/def :queue-summary/event-type #{"QueueSummary"})
-(s/def :ami/queue-summary-event
-  (s/keys :req-un [:queue-summary/event-type
-                   :ami/queue
-                   :queue/available
-                   :queue/holdTime
-                   :queue/loggedIn
-                   :queue/longestHoldTime
-                   :queue/talkTime]))
-
-
-(s/def :member-summary-event/type #{"MemberSummary"})
-(s/def ::qmember-summary-event
-  (s/and (s/keys :req-un [:member-summary-event/type
-                          :ami/queue]
-                 :opt-un [:member/incall
-                          :member/callsTaken
-                          :member/lastCall
-                          :member/paused
-                          :member/memberName
-                          :member/location])))
-
-(s/def :queue-summary-event/type #{"QueueSummary"})
-(s/def ::qsummary-event
-  (s/and (s/keys :req-un [:queue-summary-event/type
-                          :ami/queue
-                          :queue/available
-                          :queue/holdTime
-                          :queue/loggedIn
-                          :queue/longestHoldTime
-                          :queue/talkTime
-                          :queue/abandoned
-                          :queue/completed
-                          :queue/serviceLevel
-                          :queue/serviceLevelPerf])))
 
 (defn- send-action [a & [timeout]]
   (spy 'ami-event "Action response"
@@ -237,7 +149,7 @@
 
   Note: the type of all parameters is string."
   [agnt-or-chan destination]
-  (let [candidates (find-channels agnt-or-chan)]
+  (let [candidates (find-channels agnt-or-chan (send-eventaction (u/action "Status" {})))]
     (cond
       (not (first candidates)) nil
       (next candidates) {:candidates candidates}
@@ -264,7 +176,7 @@
   can then be used to call this function again with the chosen
   channel name."
   [agnt-or-chan]
-  (let [candidates (find-channels agnt-or-chan)]
+  (let [candidates (find-channels agnt-or-chan (send-eventaction (u/action "Status" {})))]
     (cond
       (not (first candidates)) nil
       (next candidates) {:candidates candidates}
@@ -330,13 +242,6 @@
                              :serviceLevel     (% :serviceLevel)
                              :serviceLevelPerf (% :serviceLevelPerf))))))
 
-(s/def ::->qsummary-events-args (s/cat :ami-queue-status-events :ami/queue-status-response-events
-                                       :ami-queue-summary-events (s/coll-of :ami/queue-summary-event)))
-
-(s/fdef ->qsummary-events
-  :args ::->qsummary-events-args
-  :ret (s/coll-of ::qsummary-event))
-
 (defn- ->qmember-summary-events [qstatus-ami-events]
   (->> qstatus-ami-events
        (filter #(= (% :event-type) "QueueMember"))
@@ -346,15 +251,6 @@
        (group-by :queue)
        (map (fn [[q members]]
               (u/make-event :queue q "MemberSummary" :members members)))))
-
-(s/fdef ->qmember-summary-events
-  :args (s/cat :ami-events (s/coll-of :ami/queue-member-event))
-  :ret (s/coll-of ::qmember-summary-event)
-  :fn (fn [{:keys [args ret]}]
-        (if (some #(= (% :event-type) "QueueMember")
-                  (:ami-events args))
-          (<= 1 (count ret))
-          (zero? (count ret)))))
 
 (defn publish-q-summary-status []
   (let [qstatus-ami-events (send-eventaction (u/action "QueueStatus" {}))
@@ -381,22 +277,26 @@
     (when q-event {:calls (:calls q-event), :status (u/event->member-status member-event)
                    :name (:memberName member-event)})))
 
-(defn- calls-in-progress [& [agnt]]
-  (let [bridged (bridged-channels)
-        active-channels (reduce (fn [a1 k]
-                                  (let [maps (get bridged k)]
-                                    (concat a1
-                                            [(assoc (first maps) :otherSideCallNum
-                                                                 ((second maps) :callerIdNum))
-                                             (assoc (second maps) :otherSideCallNum
-                                                                  ((first maps) :callerIdNum))])))
-                                [] (keys bridged))]
-    (map (fn [x] [[(u/channel-name->exten (x :channel))
+(defn- calls-in-progress
+  ([] ; deprecated
+   (calls-in-progress nil))
+  ([agnt] ; deprecated
+   (calls-in-progress agnt (send-eventaction (u/action "Status" {}))))
+  ([agnt ami-status-events]
+   (let [bridged (bridged-channels ami-status-events)
+         active-channels (reduce (fn [a1 k]
+                                   (let [maps (get bridged k)]
+                                     (concat a1
+                                             [(assoc (first maps) :otherSideCallNum
+                                                     ((second maps) :callerIdNum))
+                                              (assoc (second maps) :otherSideCallNum
+                                                     ((first maps) :callerIdNum))])))
+                                 [] (keys bridged))]
+     (map (fn [x] [[(u/channel-name->exten (x :channel))
                    (x :channel)] (x :otherSideCallNum)])
-         (if agnt
-           (filter #(= agnt (u/channel-name->exten (% :channel))) active-channels)
-           active-channels))))
-
+          (if agnt
+            (filter #(= agnt (u/channel-name->exten (% :channel))) active-channels)
+            active-channels)))))
 
 (defn incref [agnts]
   (swap! agnt-state (fn [st] (reduce (fn [st agnt] (update-in st [agnt :refcount] #(inc (or % 0))))

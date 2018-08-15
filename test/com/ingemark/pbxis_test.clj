@@ -1,5 +1,6 @@
 (ns com.ingemark.pbxis-test
   (:require [com.ingemark.pbxis :as pbxis]
+            [com.ingemark.pbxis.specs]
             [com.ingemark.testutil :as testutil]
             [com.ingemark.logging :refer [loginfo logdebug]]
             [clojure.test :refer [deftest is are use-fixtures]]
@@ -34,7 +35,7 @@
       (check-spec sym))))
 
 (defn- ->queue-summary-events-args-generator []
-  (gen/let [q (s/gen :com.ingemark.pbxis/non-empty-string)]
+  (gen/let [q (s/gen :com.ingemark.pbxis.specs/non-empty-string)]
     (gen/tuple
      (gen/fmap (fn [[qpe qme-vec]] (cons qpe qme-vec))
                (gen/tuple (gen/fmap #(assoc % :queue q)
@@ -47,5 +48,5 @@
 
 (deftest qsummary-events-generative-test
   (check-spec `pbxis/->qsummary-events
-              {:gen {:com.ingemark.pbxis/->qsummary-events-args
+              {:gen {:com.ingemark.pbxis.specs/->qsummary-events-args
                      ->queue-summary-events-args-generator}}))
