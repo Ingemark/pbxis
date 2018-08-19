@@ -6,8 +6,7 @@
             [clojure.test :refer [deftest is are use-fixtures]]
             [clojure.test.check.generators :as gen]
             [clojure.spec.test.alpha :as stest]
-            [clojure.spec.alpha :as s]
-            [clojure.spec.gen.alpha :as sgen]))
+            [clojure.spec.alpha :as s]))
 
 (use-fixtures :once testutil/with-instrumentation)
 
