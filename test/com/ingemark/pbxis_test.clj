@@ -5,8 +5,8 @@
             [com.ingemark.logging :refer [loginfo logdebug]]
             [clojure.test :refer [deftest is are use-fixtures]]
             [clojure.test.check.generators :as gen]
-            [clojure.spec.test.alpha :as stest]
-            [clojure.spec.alpha :as s]))
+            [clojure.spec.test.alpha :as spec.test]
+            [clojure.spec.alpha :as spec]))
 
 (use-fixtures :once testutil/with-instrumentation)
 
@@ -19,8 +19,8 @@
   ([sym]
    (check-spec sym nil))
   ([sym opts]
-   (when-let [failures (->> (stest/check sym (merge default-test-check-options
-                                                    opts))
+   (when-let [failures (->> (spec.test/check sym (merge default-test-check-options
+                                                        opts))
                             (map :failure))]
      (if-not (every? nil? failures)
        (throw (ex-info (str "Generative test failed (see the cause for details), symbol " sym)
@@ -34,16 +34,16 @@
       (check-spec sym))))
 
 (defn- ->queue-summary-events-args-generator []
-  (gen/let [q (s/gen :com.ingemark.pbxis.specs/non-empty-string)]
+  (gen/let [q (spec/gen :com.ingemark.pbxis.specs/non-empty-string)]
     (gen/tuple
      (gen/fmap (fn [[qpe qme-vec]] (cons qpe qme-vec))
                (gen/tuple (gen/fmap #(assoc % :queue q)
-                                    (s/gen :ami/queue-params-event))
+                                    (spec/gen :ami/queue-params-event))
                           (gen/vector (gen/fmap #(assoc % :queue q)
-                                                (s/gen :ami/queue-member-event))
+                                                (spec/gen :ami/queue-member-event))
                                       3)))
      (gen/fmap #(vector (assoc % :queue q))
-               (s/gen :ami/queue-summary-event)))))
+               (spec/gen :ami/queue-summary-event)))))
 
 (deftest qsummary-events-generative-test
   (check-spec `pbxis/->qsummary-events
