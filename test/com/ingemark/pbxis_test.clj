@@ -1,31 +1,31 @@
 (ns com.ingemark.pbxis-test
   (:require [com.ingemark.pbxis :as pbxis]
-            [com.ingemark.pbxis.specs]
+            [com.ingemark.pbxis.specs :as pbxis.specs]
             [com.ingemark.testutil :as testutil]
             [com.ingemark.logging :refer [loginfo logdebug]]
             [clojure.test :refer [deftest is are use-fixtures]]
             [clojure.test.check.generators :as gen]
-            [clojure.spec.test.alpha :as spec.test]
-            [clojure.spec.alpha :as spec]))
+            clojure.spec.test.alpha
+            [clojure.spec.alpha :as s]))
 
 (use-fixtures :once testutil/with-instrumentation)
 
-(def default-test-check-options {:clojure.spec.test.check/opts {:num-tests 30}})
+(alias 'ami.event (create-ns 'com.ingemark.pbxis.ami.event))
 
 ;; This one throws exception in case of failures (causing a test error instead
 ;; of a failure) because I haven't figured out a better way for Cider to pretty
 ;; print the clojure.spec validation report.
 (defn- check-spec
   ([sym]
-   (check-spec sym nil))
+   (check-spec sym {}))
   ([sym opts]
-   (when-let [failures (->> (spec.test/check sym (merge default-test-check-options
-                                                        opts))
-                            (map :failure))]
-     (if-not (every? nil? failures)
+   (let [failures (->> (clojure.spec.test.alpha/check sym opts)
+                       (map :failure)
+                       (remove nil?))]
+     (if (seq failures)
        (throw (ex-info (str "Generative test failed (see the cause for details), symbol " sym)
                        {:symbol sym}
-                       (first (remove nil? failures))))
+                       (first failures)))
        (is true))))) ; this is here to avoid complaints about missing assertions
 
 (deftest check-specs
@@ -33,19 +33,20 @@
     (doseq [sym syms]
       (check-spec sym))))
 
+;; This is far from perfect. E.g. all generated events are for the same queue.
 (defn- ->queue-summary-events-args-generator []
-  (gen/let [q (spec/gen :com.ingemark.pbxis.specs/non-empty-string)]
+  (gen/let [q (s/gen ::pbxis.specs/non-empty-string)]
     (gen/tuple
      (gen/fmap (fn [[qpe qme-vec]] (cons qpe qme-vec))
                (gen/tuple (gen/fmap #(assoc % :queue q)
-                                    (spec/gen :ami/queue-params-event))
+                                    (s/gen ::ami.event/queue-params-event))
                           (gen/vector (gen/fmap #(assoc % :queue q)
-                                                (spec/gen :ami/queue-member-event))
+                                                (s/gen ::ami.event/queue-member-event))
                                       3)))
      (gen/fmap #(vector (assoc % :queue q))
-               (spec/gen :ami/queue-summary-event)))))
+               (s/gen ::ami.event/queue-summary-event)))))
 
 (deftest qsummary-events-generative-test
   (check-spec `pbxis/->qsummary-events
-              {:gen {:com.ingemark.pbxis.specs/->qsummary-events-args
+              {:gen {::pbxis.specs/->qsummary-events-args
                      ->queue-summary-events-args-generator}}))
