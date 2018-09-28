@@ -5,3 +5,4 @@ logs
 .idea
 /.nrepl-port
 /.lein-failures
+checkouts/
