@@ -6,3 +6,4 @@ logs
 /.nrepl-port
 /.lein-failures
 checkouts/
+test/debug.clj
