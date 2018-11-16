@@ -90,7 +90,7 @@ Events, enqueued into the event channel, are maps where the key `:type` determin
 - `unknown`.
 
 
-<b>`phoneNumber`</b>: phone number of the remote party currently patched through to agent's extension. Scope: `:agent`. Detail: `:number`, the phone number (string) or `nil` if there is no call; `:name`, the party name (if available).
+<b>`phoneNumber`</b>: phone number of the remote party currently patched through to agent's extension. Scope: `:agent`. Detail: `:number`, the phone number (string) or `nil` if there is no call; `:name`, the party name (if available); `:queue`, the queue name (if available).
 
 <b>`queueCount`</b>: number of callers waiting in an agent queue. Scope: `:queue`. Detail: `:count`, the queue count.
 
