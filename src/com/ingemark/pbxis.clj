@@ -436,7 +436,7 @@
         (u/call-event agnt unique-id nil))
       #"AgentCalled"
       (u/call-event (u/channel-name->exten (ami-ev :destChannel)) unique-id
-                    (ami-ev :callerIdNum) (ami-ev :callerIdName))
+                    (ami-ev :callerIdNum) (ami-ev :callerIdName) (ami-ev :queue))
       #"AgentComplete"
       (let [agnt (u/channel-name->exten (ami-ev :destChannel))]
         [(u/call-event agnt unique-id nil)
