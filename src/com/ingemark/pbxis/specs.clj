@@ -38,6 +38,7 @@
 (s/def ::ami.queue/completed        nat-int?)
 (s/def ::ami.queue/serviceLevel     nat-int?)
 (s/def ::ami.queue/serviceLevelPerf double?)
+(s/def ::ami.queue/calls            nat-int?)
 
 (alias 'ami.event (create-ns 'com.ingemark.pbxis.ami.event))
 
@@ -48,7 +49,8 @@
                    ::ami.queue/abandoned
                    ::ami.queue/completed
                    ::ami.queue/serviceLevel
-                   ::ami.queue/serviceLevelPerf]))
+                   ::ami.queue/serviceLevelPerf
+                   ::ami.queue/calls]))
 
 (s/def :com.ingemark.pbxis.ami.event.queue-member-event/event-type #{"QueueMember"})
 (s/def ::ami.event/queue-member-event
@@ -109,7 +111,8 @@
                           ::ami.queue/abandoned
                           ::ami.queue/completed
                           ::ami.queue/serviceLevel
-                          ::ami.queue/serviceLevelPerf])))
+                          ::ami.queue/serviceLevelPerf
+                          ::ami.queue/calls])))
 
 (s/def ::->qsummary-events-args
   (s/cat :ami-queue-status-events ::ami/queue-status-response-events

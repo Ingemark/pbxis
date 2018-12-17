@@ -226,7 +226,8 @@
                    (reduce (fn [m x] (assoc m (x :queue) {:abandoned        (x :abandoned)
                                                          :completed        (x :completed)
                                                          :serviceLevel     (x :serviceLevel)
-                                                         :serviceLevelPerf (x :serviceLevelPerf)}))
+                                                         :serviceLevelPerf (x :serviceLevelPerf)
+                                                         :calls            (x :calls)}))
                            {}))]
     (->> qsummary-ami-events
          (filter #(= (% :event-type) "QueueSummary"))
@@ -240,7 +241,8 @@
                              :abandoned        (% :abandoned)
                              :completed        (% :completed)
                              :serviceLevel     (% :serviceLevel)
-                             :serviceLevelPerf (% :serviceLevelPerf))))))
+                             :serviceLevelPerf (% :serviceLevelPerf)
+                             :calls            (% :calls))))))
 
 (defn- ->qmember-summary-events [qstatus-ami-events]
   (->> qstatus-ami-events
