@@ -1,7 +1,7 @@
 (defproject com.ingemark/pbxis "2.0.8-SNAPSHOT"
   :description "Asterisk Call Center Adapter"
   :url "https://github.com/Inge-mark/pbxis"
-  :license {:name "Eclipse Public License" :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :license {:name "Apache License, Version 2.0"}
   :lein-release {:deploy-via :lein-deploy-clojars}
 
   :dependencies [[org.clojure/clojure "1.9.0"]
