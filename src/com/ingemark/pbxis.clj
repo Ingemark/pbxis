@@ -223,11 +223,12 @@
 (defn- ->qsummary-events [qstatus-ami-events qsummary-ami-events]
   (let [qdata (->> qstatus-ami-events
                    (filter #(= (% :event-type) "QueueParams"))
-                   (reduce (fn [m x] (assoc m (x :queue) {:abandoned        (x :abandoned)
-                                                         :completed        (x :completed)
-                                                         :serviceLevel     (x :serviceLevel)
-                                                         :serviceLevelPerf (x :serviceLevelPerf)
-                                                         :calls            (x :calls)}))
+                   (reduce (fn [m x] (assoc m (x :queue)
+                                           (select-keys x [:abandoned
+                                                           :completed
+                                                           :serviceLevel
+                                                           :serviceLevelPerf
+                                                           :calls])))
                            {}))]
     (->> qsummary-ami-events
          (filter #(= (% :event-type) "QueueSummary"))
