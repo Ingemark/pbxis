@@ -4,7 +4,7 @@
   :license {:name "Apache License, Version 2.0"}
   :lein-release {:deploy-via :lein-deploy-clojars}
 
-  :dependencies [[org.clojure/clojure "1.9.0"]
+  :dependencies [[org.clojure/clojure "1.10.1-beta2"]
                  [org.clojure/core.incubator "0.1.2"]
                  [potemkin "0.4.5"] ; overriding potemkin version referenced by
                                     ; Lamina because it doesn't seem to work
