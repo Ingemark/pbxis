@@ -1,6 +1,6 @@
 (ns com.ingemark.testutil
   (:require  [clojure.test :as t :refer [is]]
-             [clojure.spec.test.alpha :as stest]))
+             [orchestra.spec.test :as stest]))
 
 (defn with-instrumentation [f]
   (stest/instrument)

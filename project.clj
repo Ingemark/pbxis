@@ -16,7 +16,8 @@
                  [org.asteriskjava/asterisk-java "2.0.3"]]
   :profiles {:dev {:dependencies [[org.clojure/test.check "0.10.0-alpha3"]
                                   [org.clojure/spec.alpha "0.2.176"]
-                                  [org.clojure/core.specs.alpha "0.2.44"]]}}
+                                  [org.clojure/core.specs.alpha "0.2.44"]
+                                  [orchestra "2018.12.06-2"]]}}
   :exclusions [log4j/log4j]
   :aliases {"release" ["xdo" "git-check-clean"
                        ["thrush" "version-update" ":release," "edit-version"]
