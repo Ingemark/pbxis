@@ -90,29 +90,29 @@
 ;;
 (s/def :com.ingemark.pbxis.event.qmember-summary-event/type #{"MemberSummary"})
 (s/def ::pbxis/qmember-summary-event
-  (s/and (s/keys :req-un [:com.ingemark.pbxis.event.qmember-summary-event/type
-                          ::ami/queue]
-                 :opt-un [::ami.member/incall
-                          ::ami.member/callsTaken
-                          ::ami.member/lastCall
-                          ::ami.member/paused
-                          ::ami.member/memberName
-                          ::ami.member/location])))
+  (s/keys :req-un [:com.ingemark.pbxis.event.qmember-summary-event/type
+                   ::ami/queue]
+          :opt-un [::ami.member/incall
+                   ::ami.member/callsTaken
+                   ::ami.member/lastCall
+                   ::ami.member/paused
+                   ::ami.member/memberName
+                   ::ami.member/location]))
 
 (s/def :com.ingemark.pbxis.event.queue-summary-event/type #{"QueueSummary"})
 (s/def ::pbxis/queue-summary-event
-  (s/and (s/keys :req-un [:com.ingemark.pbxis.event.queue-summary-event/type
-                          ::ami/queue
-                          ::ami.queue/available
-                          ::ami.queue/holdTime
-                          ::ami.queue/loggedIn
-                          ::ami.queue/longestHoldTime
-                          ::ami.queue/talkTime
-                          ::ami.queue/abandoned
-                          ::ami.queue/completed
-                          ::ami.queue/serviceLevel
-                          ::ami.queue/serviceLevelPerf
-                          ::ami.queue/calls])))
+  (s/keys :req-un [:com.ingemark.pbxis.event.queue-summary-event/type
+                   ::ami/queue
+                   ::ami.queue/available
+                   ::ami.queue/holdTime
+                   ::ami.queue/loggedIn
+                   ::ami.queue/longestHoldTime
+                   ::ami.queue/talkTime
+                   ::ami.queue/abandoned
+                   ::ami.queue/completed
+                   ::ami.queue/serviceLevel
+                   ::ami.queue/serviceLevelPerf
+                   ::ami.queue/calls]))
 
 (s/def ::->qsummary-events-args
   (s/cat :ami-queue-status-events ::ami/queue-status-response-events
