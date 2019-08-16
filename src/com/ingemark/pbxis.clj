@@ -427,9 +427,15 @@
       (u/qcount-event (:queue ami-ev) (:count ami-ev))
       #"Bridge"
       [(when-let [agnt (u/channel-name->exten (ami-ev :channel1))]
-         (u/call-event agnt (ami-ev :channel1) (ami-ev :callerId2)))
+         (u/call-event agnt (ami-ev :channel1) (ami-ev :callerId2)
+                       :unique-id1 (ami-ev :uniqueId1)
+                       :unique-id2 (ami-ev :uniqueId2)
+                       :systemName (ami-ev :systemName)))
        (when-let [agnt (u/channel-name->exten (ami-ev :channel2))]
-         (u/call-event agnt (ami-ev :channel2) (ami-ev :callerId1)))]
+         (u/call-event agnt (ami-ev :channel2) (ami-ev :callerId1)
+                       :unique-id1 (ami-ev :uniqueId1)
+                       :unique-id2 (ami-ev :uniqueId2)
+                       :systemName (ami-ev :systemName)))]
       #"Hangup"
       (u/call-event (ami-ev :channel) unique-id nil)
       #"AgentRingNoAnswer"
@@ -438,8 +444,8 @@
       (when-let [agnt (some #(when ((val %) unique-id) (key %)) @agnt-calls)]
         (u/call-event agnt unique-id nil))
       #"AgentCalled"
-      (u/call-event (u/channel-name->exten (ami-ev :destChannel)) unique-id
-                    (ami-ev :callerIdNum) (ami-ev :callerIdName) (ami-ev :queue))
+      (u/call-event (u/channel-name->exten (ami-ev :destChannel)) unique-id (ami-ev :callerIdNum)
+                    :name (ami-ev :callerIdName) :queue (ami-ev :queue))
       #"AgentComplete"
       (let [agnt (u/channel-name->exten (ami-ev :destChannel))]
         [(u/call-event agnt unique-id nil)
