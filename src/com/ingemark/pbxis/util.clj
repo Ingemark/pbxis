@@ -131,9 +131,8 @@
 (defn name-event [agnt name]
   (when name (make-event :agent (digits agnt) "agentName" :name name)))
 
-(defn call-event [agnt unique-id phone-num & [name queue]]
-  (agnt-event (digits agnt) "phoneNumber" :unique-id unique-id :number phone-num
-              :name name :queue queue))
+(defn call-event [agnt unique-id phone-num & data]
+  (apply agnt-event (digits agnt) "phoneNumber" :unique-id unique-id :number phone-num data))
 
 (defn qcount-event [q cnt] (make-event :queue q "queueCount" :count cnt))
 
