@@ -25,7 +25,7 @@
                        ["commit" "New release"] "tag"
                        ["thrush" "version-update" ":new-snapshot," "edit-version"]
                        ["commit" "New snapshot"] "push"]}
-  :plugins [[lein-nix "0.1.9"]]
+  :plugins [[im-lein-nix "0.1.13"]]
   :jvm-opts ["-Dlogback.configurationFile=logback.xml"]
   :repl-options {:init-ns com.ingemark.pbxis}
   :repositories [["asterisk-java" "https://raw.githubusercontent.com/asterisk-java/asterisk-java/mvn-repo"]])
