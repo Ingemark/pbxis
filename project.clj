@@ -1,4 +1,4 @@
-(defproject com.ingemark/pbxis "2.0.8-SNAPSHOT"
+(defproject com.ingemark/pbxis "2.0.8"
   :description "Asterisk Call Center Adapter"
   :url "https://github.com/Inge-mark/pbxis"
   :license {:name "Apache License, Version 2.0"}
